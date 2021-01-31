@@ -380,13 +380,18 @@ void showWatchFace(String from){
   Serial.println(configObj[from]);
   for(int16_t i=0; i<configObj[from]["face"].length(); i+=1) {
     const char* type = configObj[from]["face"][i]["type"];
+    Serial.println(type);
     
-    if(type == "image"){
+    if(type == 0){
       JSONVar src = configObj[from]["face"][i]["s"];
       int y = configObj[from]["face"][i]["y"];
       int w = configObj[from]["face"][i]["w"];
       int x = configObj[from]["face"][i]["x"];
       int h = configObj[from]["face"][i]["h"];
+      Serial.println(y);
+      Serial.println(w);
+      Serial.println(x);
+      Serial.println(h);
       uint8_t bitmap[src.length()];
       for(int16_t j=0; j<src.length(); j+=1) {
         int bitI = src[j];
@@ -394,13 +399,21 @@ void showWatchFace(String from){
       }
       
       display.drawXBitmap(x, y, bitmap, w, h, SSD1306_WHITE);
-    }else if(type == "text"){
+    }
+    if(type == 1){
+      Serial.println(type);
       int x = configObj[from]["face"][i]["x"];
       int y = configObj[from]["face"][i]["y"];
       int s = configObj[from]["face"][i]["s"];
       const char* i = configObj[from]["face"][i]["i"];
       const char* c = configObj[from]["face"][i]["c"];
       const char* text = configObj[from]["face"][i]["t"];
+      Serial.println(x);
+      Serial.println(y);
+      Serial.println(s);
+      Serial.println(i);
+      Serial.println(c);
+      Serial.println(text);
       printText(c, s, x ,y, i, text);
 
     }
