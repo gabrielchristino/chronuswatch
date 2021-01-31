@@ -127,6 +127,7 @@ void printText(String cls, int tSize, int x, int y, String white, String text) {
 ///////////////////////////////////////////SHOW AN ICON WITH TEXT
 void showIcons(String text, int icon){
   display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
   display.cp437(true);
   display.setTextSize(5);
   display.setCursor(55, 0); 
@@ -158,10 +159,7 @@ void printNetwork(){
     printText("false", 1, 0, 35, "true", F("Your IP address is:"));
     printText("false", 1, 0, 45, "true", WiFi.localIP().toString().c_str());
 }
-///////////////////////////////////////////GET ENCODER VALUE
-void getEncoderValue(){
-}
-   
+
 String httpGETRequest(const char* serverName) {
   HTTPClient http;
     
