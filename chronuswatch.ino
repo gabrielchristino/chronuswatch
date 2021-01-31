@@ -378,15 +378,15 @@ void getUpdateGit(){
 
 void showWatchFace(String from){
   Serial.println(configObj[from]);
-  for(int16_t i=0; i<configObj[from].length(); i+=1) {
-    const char* type = configObj[from][from][i]["type"];
+  for(int16_t i=0; i<configObj[from]["face"].length(); i+=1) {
+    const char* type = configObj[from]["face"][i]["type"];
     
     if(type == "image"){
-      JSONVar src = configObj[from][from][i]["s"];
-      int x = configObj[from][i]["x"];
-      int y = configObj[from][i]["y"];
-      int w = configObj[from][i]["w"];
-      int h = configObj[from][i]["h"];
+      JSONVar src = configObj[from]["face"][i]["s"];
+      int y = configObj[from]["face"][i]["y"];
+      int w = configObj[from]["face"][i]["w"];
+      int x = configObj[from]["face"][i]["x"];
+      int h = configObj[from]["face"][i]["h"];
       uint8_t bitmap[src.length()];
       for(int16_t j=0; j<src.length(); j+=1) {
         int bitI = src[j];
@@ -395,12 +395,12 @@ void showWatchFace(String from){
       
       display.drawXBitmap(x, y, bitmap, w, h, SSD1306_WHITE);
     }else if(type == "text"){
-      int x = configObj[from][i]["x"];
-      int y = configObj[from][i]["y"];
-      int s = configObj[from][i]["s"];
-      const char* i = configObj[from][i]["i"];
-      const char* c = configObj[from][i]["c"];
-      const char* text = configObj[from][i]["t"];
+      int x = configObj[from]["face"][i]["x"];
+      int y = configObj[from]["face"][i]["y"];
+      int s = configObj[from]["face"][i]["s"];
+      const char* i = configObj[from]["face"][i]["i"];
+      const char* c = configObj[from]["face"][i]["c"];
+      const char* text = configObj[from]["face"][i]["t"];
       printText(c, s, x ,y, i, text);
 
     }
