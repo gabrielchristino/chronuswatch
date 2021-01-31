@@ -1,1 +1,1 @@
-{"version":1,"wifi":[{"ssid":"gtchris100","password":"carsled100"}],"configuration":{"gmt":-3,"invertDisplay":false,"weatherId":3448439},"watch":{"analog":false,"face":[{"type":"image","x":0,"y":0,"w":128,"h":64,"src":[]}]}}
+{"version":2,"wifi":[{"ssid":"gtchris100","password":"carsled100"}],"configuration":{"gmt":-3,"invertDisplay":false,"weatherId":3448439},"watch":{"analog":true,"face":[{"type":"image","x":0,"y":0,"w":128,"h":64,"src":[]}]}}
