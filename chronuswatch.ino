@@ -377,7 +377,9 @@ void getUpdateGit(){
 void showWatchFace(String from){
   for(int16_t i=0; i<configObj[from]["face"].length(); i+=1) {
     JSONVar face = configObj[from]["face"][i];  
+      Serial.println(face);
     int type = face["type"];
+      Serial.println(type);
      
     if(type == 0){
       JSONVar src = face["s"];
@@ -386,8 +388,11 @@ void showWatchFace(String from){
       int x = face["x"];
       int h = face["h"];
       uint8_t bitmap[src.length()];
+      Serial.println(src.length());
       for(int16_t j=0; j<src.length(); j+=1) {
-        int bitI = src[j];
+        const char* bitC = src[j];
+        int bitI = atoi(bitC);
+        Serial.println(bitI);
         bitmap[j] = bitI;
       }
       
