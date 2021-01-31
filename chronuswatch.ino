@@ -352,7 +352,7 @@ void printLocalTime() {
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////GET GIT
 void getUpdateGit(){
   showIcons(F("Updating..."), 225);
-  String getGitHtml = "https://raw.githubusercontent.com/gabrielchristino/chronuswatch/main/config.json";
+  String getGitHtml = "https://raw.githubusercontent.com/gabrielchristino/chronuswatch/main/data/config.json";
   payloadConfigJson = httpGETRequest(getGitHtml.c_str());
   JSONVar myGit = JSON.parse(payloadConfigJson);
   
@@ -377,6 +377,7 @@ void getUpdateGit(){
 }
 
 void showWatchFace(String from){
+  Serial.println(configObj[from]);
   for(int16_t i=0; i<configObj[from].length(); i+=1) {
     const char* type = configObj[from][from][i]["type"];
     
