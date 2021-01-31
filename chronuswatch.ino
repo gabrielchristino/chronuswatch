@@ -383,20 +383,20 @@ void showWatchFace(String from){
      
     if(type == 0){
       JSONVar src = face["s"];
+      int arraysize = face["s"].length();
       int y = face["y"];
       int w = face["w"];
       int x = face["x"];
       int h = face["h"];
-      uint8_t bitmap[src.length()];
-      Serial.println(src.length());
-      for(int16_t j=0; j<src.length(); j+=1) {
-        const char* bitC = src[j];
-        int bitI = atoi(bitC);
-        Serial.println(bitI);
-        bitmap[j] = bitI;
+
+      for(int x=0;x<arraysize;x+=1){
+        for(int wA=x; wA<x+w; wA+=1){
+          for(int hA=y; hA<y+h; hA+=1){
+            int n = src[x];
+            display.drawPixel(wA, hA, n);
+          }
+        }
       }
-      
-      display.drawXBitmap(x, y, bitmap, w, h, SSD1306_WHITE);
     }
     if(type == 1){
       int y = face["y"];
