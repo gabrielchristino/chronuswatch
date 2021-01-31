@@ -400,7 +400,7 @@ void showWatchFace(String from){
       const char* i = configObj[from][i]["i"];
       const char* c = configObj[from][i]["c"];
       const char* text = configObj[from][i]["t"];
-      printText(c.toString(), s, x ,y, i.toString(), text.toString());
+      printText(c, s, x ,y, i, text);
 
     }
 
@@ -467,7 +467,7 @@ void setup() {
   if(!conectado){
 ///////////////////////////////////////////AP IF CAN'T CONNECT TO WIFI
     WiFi.softAP("Puntly","12345678",1,13);
-    printText("true", 1, 0 ,0, "true", "Can't connect to WiFi.");
+    printText("true", 1, 0 ,0, "true", "Can't connect to WiFi");
 //    printText("true", 1, 0 ,0, "true", "Sorry I can't connect to any WiFi. Please, connect your smartphone WiFi to the Puntly, password 12345678, set a new connection and try again.");
     delay(5000);
   }else{
@@ -586,13 +586,19 @@ void loop(void) {
         showIcons(F("Networks"), 240);
         showMenuDots();
       } else if(reading==4){
-        showIcons(configObj["p1"]["name"], configObj["p1"]["icon"]);
+        const char* p1name = configObj["p1"]["name"];
+        int p1icon = configObj["p1"]["icon"];
+        showIcons(p1name, p1icon);
         showMenuDots();
       } else if(reading==5){
-        showIcons(configObj["p2"]["name"], configObj["p2"]["icon"]);
+        const char* p2name = configObj["p2"]["name"];
+        int p2icon = configObj["p2"]["icon"];
+        showIcons(p2name, p2icon);
         showMenuDots();
       } else if(reading==6){
-        showIcons(configObj["p3"]["name"], configObj["p3"]["icon"]);
+        const char* p3name = configObj["p3"]["name"];
+        int p3icon = configObj["p3"]["icon"];
+        showIcons(p3name, p3icon);
         showMenuDots();
       } else if(reading==7){
         showIcons(F("Update"), 225);
