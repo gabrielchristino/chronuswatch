@@ -377,13 +377,9 @@ void getUpdateGit(){
 }
 
 void showWatchFace(String from){
-  Serial.println(configObj[from]);
   for(int16_t i=0; i<configObj[from]["face"].length(); i+=1) {
     JSONVar face = configObj[from]["face"][i];  
-    Serial.println(face);
     int type = face["type"];
-    Serial.println(type);
-
      
     if(type == 0){
       JSONVar src = face["s"];
@@ -391,10 +387,6 @@ void showWatchFace(String from){
       int w = face["w"];
       int x = face["x"];
       int h = face["h"];
-      Serial.println(y);
-      Serial.println(w);
-      Serial.println(x);
-      Serial.println(h);
       uint8_t bitmap[src.length()];
       for(int16_t j=0; j<src.length(); j+=1) {
         int bitI = src[j];
@@ -404,21 +396,13 @@ void showWatchFace(String from){
       display.drawXBitmap(x, y, bitmap, w, h, SSD1306_WHITE);
     }
     if(type == 1){
-      Serial.println(type);
       int y = face["y"];
       int x = face["x"];
       int s = face["s"];
       const char* i = face["i"];
       const char* c = face["c"];
       const char* text = face["t"];
-      Serial.println(x);
-      Serial.println(y);
-      Serial.println(s);
-      Serial.println(i);
-      Serial.println(c);
-      Serial.println(text);
       printText(c, s, x ,y, i, text);
-
     }
 
   }
