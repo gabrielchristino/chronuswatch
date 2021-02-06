@@ -375,13 +375,14 @@ void getUpdateGit(){
 }
 
 void showWatchFace(String from){
+      Serial.println(from);
   for(int16_t i=0; i<configObj[from]["face"].length(); i+=1) {
     JSONVar face = configObj[from]["face"][i];  
       Serial.println(face);
     int type = face["type"];
-      Serial.println(type);
      
     if(type == 0){
+      Serial.println(type);
       JSONVar src = face["s"];
       int arraysize = face["s"].length();
       int y = face["y"];
@@ -393,6 +394,7 @@ void showWatchFace(String from){
         for(int wA=x; wA<x+w; wA+=1){
           for(int hA=y; hA<y+h; hA+=1){
             int n = src[x];
+            Serial.print(n);
             display.drawPixel(wA, hA, n);
           }
         }
@@ -433,17 +435,13 @@ void setup() {
   
   configFile = SPIFFS.open("/config.json",FILE_READ);
   String line = configFile.readStringUntil('\n');
-
-  Serial.println(line);
   
   configObj = JSON.parse(line);
   configFile.close();
 
   getLocalVersion = configObj["version"];
-  Serial.println(getLocalVersion);
 
   gmtOffset_sec = configObj["configuration"]["gmt"];
-  Serial.println(gmtOffset_sec);
   gmtOffset_sec = gmtOffset_sec*3600;
   
   bool invertD = configObj["configuration"]["invertDisplay"];
@@ -455,12 +453,10 @@ void setup() {
 
 ///////////////////////////////////////////WIFI
   JSONVar wifiConfig = configObj["wifi"];
-  Serial.println(wifiConfig);
   bool conectado = false;
   for(int16_t i=0; i<wifiConfig.length(); i+=1) {
     ssid = configObj["wifi"][i]["ssid"];
     password = configObj["wifi"][i]["password"];
-  Serial.println(ssid);
   
     WiFi.begin(ssid , password);
 
@@ -475,7 +471,6 @@ void setup() {
   }
 
   if(!conectado){
-    WiFi.begin("gtchris100","carsled100");
 ///////////////////////////////////////////AP IF CAN'T CONNECT TO WIFI
     WiFi.softAP("Puntly","12345678",1,13);
     printText("true", 1, 0 ,0, "true", "Can't connect to WiFi");
