@@ -15,8 +15,8 @@ WebServer server(80);
 HTTPClient http;
 
 const char* host = "Puntly";
-const char* ssid = "ssid";
-const char* password = "host";
+const char* ssid = "gtchris100";
+const char* password = "carsled100";
 
 JSONVar configObj;
 
@@ -433,13 +433,17 @@ void setup() {
   
   configFile = SPIFFS.open("/config.json",FILE_READ);
   String line = configFile.readStringUntil('\n');
+
+  Serial.println(line);
   
   configObj = JSON.parse(line);
   configFile.close();
 
   getLocalVersion = configObj["version"];
+  Serial.println(getLocalVersion);
 
   gmtOffset_sec = configObj["configuration"]["gmt"];
+  Serial.println(gmtOffset_sec);
   gmtOffset_sec = gmtOffset_sec*3600;
   
   bool invertD = configObj["configuration"]["invertDisplay"];
@@ -451,10 +455,12 @@ void setup() {
 
 ///////////////////////////////////////////WIFI
   JSONVar wifiConfig = configObj["wifi"];
+  Serial.println(wifiConfig);
   bool conectado = false;
   for(int16_t i=0; i<wifiConfig.length(); i+=1) {
     ssid = configObj["wifi"][i]["ssid"];
     password = configObj["wifi"][i]["password"];
+  Serial.println(ssid);
   
     WiFi.begin(ssid , password);
 
@@ -469,6 +475,7 @@ void setup() {
   }
 
   if(!conectado){
+    WiFi.begin("gtchris100","carsled100");
 ///////////////////////////////////////////AP IF CAN'T CONNECT TO WIFI
     WiFi.softAP("Puntly","12345678",1,13);
     printText("true", 1, 0 ,0, "true", "Can't connect to WiFi");
