@@ -308,15 +308,15 @@ void printLocalTime() {
   //
   //hour ticks
   for( int z=0; z < 360;z= z + 30 ){
-  //Begin at 0° and stop at 360°
-  float angle = z ;
-   
-  angle=(angle/57.29577951) ; //Convert degrees to radians
-  int x2=(64+(sin(angle)*r));
-  int y2=(32-(cos(angle)*r));
-  int x3=(64+(sin(angle)*(r-5)));
-  int y3=(32-(cos(angle)*(r-5)));
-  display.drawLine(x2,y2,x3,y3,WHITE);
+      //Begin at 0° and stop at 360°
+      float angle = z ;
+       
+      angle=(angle/57.29577951) ; //Convert degrees to radians
+      int x2=(64+(sin(angle)*r));
+      int y2=(32-(cos(angle)*r));
+      int x3=(64+(sin(angle)*(r-5)));
+      int y3=(32-(cos(angle)*(r-5)));
+      display.drawLine(x2,y2,x3,y3,WHITE);
   }
   // display second hand
   float angle = p_tm->tm_sec*6 ;
@@ -375,32 +375,28 @@ void getUpdateGit(){
 }
 
 void showWatchFace(String from){
-      Serial.println(from);
   for(int16_t i=0; i<configObj[from]["face"].length(); i+=1) {
     JSONVar face = configObj[from]["face"][i];  
-      Serial.println(face);
     int type = face["type"];
      
+//    if(type == 0){
+//      JSONVar src = face["s"];
+//      int arraysize = face["s"].length();
+//      int y = face["y"];
+//      int w = face["w"];
+//      int x = face["x"];
+//      int h = face["h"];
+//
+//      for(int x=0;x<arraysize;x+=1){
+//        for(int wA=x; wA<x+w; wA+=1){
+//          for(int hA=y; hA<y+h; hA+=1){
+//            int n = src[x];
+//            display.drawPixel(wA, hA, n);
+//          }
+//        }
+//      }
+//    }
     if(type == 0){
-      Serial.println(type);
-      JSONVar src = face["s"];
-      int arraysize = face["s"].length();
-      int y = face["y"];
-      int w = face["w"];
-      int x = face["x"];
-      int h = face["h"];
-
-      for(int x=0;x<arraysize;x+=1){
-        for(int wA=x; wA<x+w; wA+=1){
-          for(int hA=y; hA<y+h; hA+=1){
-            int n = src[x];
-            Serial.print(n);
-            display.drawPixel(wA, hA, n);
-          }
-        }
-      }
-    }
-    if(type == 1){
       int y = face["y"];
       int x = face["x"];
       int s = face["s"];
@@ -408,6 +404,45 @@ void showWatchFace(String from){
       const char* c = face["c"];
       const char* text = face["t"];
       printText(c, s, x ,y, i, text);
+    }
+    if(type >= 1 && type <= 7){
+      int y = face["y"];
+      int x = face["x"];
+      int s = face["s"];
+      const char* i = face["i"];
+      const char* c = face["c"];
+
+      time_t now = time(nullptr);
+      struct tm* p_tm = localtime(&now);
+
+      int tm = 0;
+      switch(type){
+        case 1:
+          tm = p_tm->tm_sec;
+          break;
+        case 2:
+          tm = p_tm->tm_min;
+          break;
+        case 3:
+          tm = p_tm->tm_hour;
+          break;
+        case 4:
+          tm = p_tm->tm_mday;
+          break;
+        case 5:
+          tm = p_tm->tm_wday;
+          break;
+        case 6:
+          tm = p_tm->tm_mon;
+          break;
+        case 7:
+          tm = p_tm->tm_year;
+          break;
+        default:
+          tm = 0;
+          break;
+      }
+      printText(c, s, x ,y, i, String(tm));
     }
 
   }
@@ -474,7 +509,6 @@ void setup() {
 ///////////////////////////////////////////AP IF CAN'T CONNECT TO WIFI
     WiFi.softAP("Puntly","12345678",1,13);
     printText("true", 1, 0 ,0, "true", "Can't connect to WiFi");
-//    printText("true", 1, 0 ,0, "true", "Sorry I can't connect to any WiFi. Please, connect your smartphone WiFi to the Puntly, password 12345678, set a new connection and try again.");
     delay(5000);
   }else{
 ///////////////////////////////////////////IF CONNECTED TO WIFI
@@ -649,7 +683,4 @@ void loop(void) {
     }
     lastTime2 = currentTime;
   }
-
-  
-    
 }
