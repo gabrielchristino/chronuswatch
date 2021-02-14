@@ -433,7 +433,7 @@ void showWatchFace(String from){
           tm = p_tm->tm_wday;
           break;
         case 6:
-          tm = p_tm->tm_mon;
+          tm = (p_tm->tm_mon)+1;
           break;
         case 7:
           tm = p_tm->tm_year;
@@ -659,7 +659,7 @@ void loop(void) {
   }
   if(currentTime >= (lastTime2 + 2000)) {
     if(reading==1){
-      if(configObj["watch"]["analog"]){
+      if(configObj["face"]["analog"]){
         printLocalTime();
       }else{
         showWatchFace(F("face"));
