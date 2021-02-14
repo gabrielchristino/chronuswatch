@@ -14,8 +14,8 @@
 WebServer server(80);
 HTTPClient http;
 
-const char* host = "Puntly";
-const char* ssid = "gtchris100";
+const char* host = "P";
+const char* ssid = "g";
 const char* password = "carsled100";
 
 JSONVar configObj;
@@ -74,6 +74,11 @@ int getLocalVersion = 0;
   boolean encC;
   boolean lastA = false;
 
+  int level = 0;
+  int readLevel[5]= {1,0,0,0,0};
+
+  #define Threshold 40
+
 ///////////////////////////////////////////OTA HTML PAGE
 const char* serverIndex =
 "<script src='https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js'></script>"
@@ -111,6 +116,21 @@ const char* serverIndex =
  "});"
  "});"
  "</script>";
+
+void callback(){
+  //placeholder callback function
+}
+
+bool waitATime(int sec){
+  unsigned long now = millis();
+  unsigned long last=0;
+
+  if(now>=last+sec){
+    now = millis();
+    return true;
+  }
+  last = now;
+}
 
 ///////////////////////////////////////////PRINT TEXT
 void printText(String cls, int tSize, int x, int y, String white, String text) {
@@ -369,6 +389,11 @@ void getUpdateGit(){
     ESP.restart();
   }else{
     showIcons(F("There's no new update"), 225);
+    
+    if(waitATime(1500)){
+      reading=8;
+    }
+    
   }
   
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -444,6 +469,16 @@ void showWatchFace(String from){
       }
       printText(c, s, x ,y, i, String(tm));
     }
+    if(type == 8){
+      int y = face["y"];
+      int x = face["x"];
+      int w = face["w"];
+      int h = face["h"];
+      
+      const char* i = face["i"];
+      const char* c = face["c"];
+      const char* text = face["t"];
+    }
 
   }
 }
@@ -455,6 +490,8 @@ void setup() {
   pinMode(pinC, INPUT_PULLUP);
   currentTime = millis();
   lastTime = currentTime; 
+  touchAttachInterrupt(T7, callback, Threshold);
+  esp_sleep_enable_touchpad_wakeup();
 ///////////////////////////////////////////DISPLAY
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
     for(;;);
@@ -581,6 +618,78 @@ void setup() {
   display.display();
 }
 
+
+void firstMenu(int numero){
+  readLevel[level] = numero;
+  
+      if(reading==0){
+        showIcons(F("Sleep"), 31);
+      } else if(numero==1){
+        showIcons(F("Time"), 28);
+        showMenuDots();
+      } else if(numero==2){
+        showIcons(F("Weather"), 15);
+        showMenuDots();
+      } else if(numero==3){
+        showIcons(F("Networks"), 240);
+        showMenuDots();
+      } else if(numero==4){
+        const char* p1name = configObj["p1"]["name"];
+        int p1icon = configObj["p1"]["icon"];
+        showIcons(p1name, p1icon);
+        showMenuDots();
+      } else if(numero==5){
+        const char* p2name = configObj["p2"]["name"];
+        int p2icon = configObj["p2"]["icon"];
+        showIcons(p2name, p2icon);
+        showMenuDots();
+      } else if(numero==6){
+        const char* p3name = configObj["p3"]["name"];
+        int p3icon = configObj["p3"]["icon"];
+        showIcons(p3name, p3icon);
+        showMenuDots();
+      } else if(numero==7){
+        showIcons(F("Update"), 225);
+        showMenuDots();
+      } else if(numero==8){
+        showIcons(F("About"), 2);
+        showMenuDots();
+      } else {
+        showIcons(F(""), 6);
+      }
+}
+
+void firstMenuSelect(int numero){
+  readLevel[level] = numero;
+
+  if(numero==0){
+      printText("true", 1, 0, 16, "true", "");
+      esp_deep_sleep_start();
+    }else if(numero==1){
+      if(configObj["face"]["analog"]){
+        printLocalTime();
+      }else{
+        showWatchFace(F("face"));
+      }
+    } else if(numero==2){
+      getWeather();
+    } else if(numero==3){
+      printNetwork();
+    } else if(numero==4){
+      showWatchFace(F("p1"));
+    } else if(numero==5){
+      showWatchFace(F("p2"));
+    } else if(numero==6){
+      showWatchFace(F("p3"));
+    } else if(numero==7){
+      getUpdateGit();
+    } else if(numero==8){
+      showIcons("Puntly Chronus v."+ String(getLocalVersion), 225);
+    } else {
+      printText("true", 1, 0, 16, "true", "");
+    }
+}
+
 void loop(void) {
   server.handleClient();
   delay(1);
@@ -592,7 +701,6 @@ void loop(void) {
     // read the two pins
     encA = digitalRead(pinA);
     encB = digitalRead(pinB);
-    encC = digitalRead(pinC);
     // check if A has gone from high to low
     if ((!encA) && (lastA)) {
       // check if B is high
@@ -613,42 +721,14 @@ void loop(void) {
           reading = highest;
         }
       }
-      // Output reading for debugging
-      if(reading==0){
-        printText("true", 1, 20, 50, "true", "");
-      } else if(reading==1){
-        showIcons(F("Time"), 28);
-        showMenuDots();
-      } else if(reading==2){
-        showIcons(F("Weather"), 15);
-        showMenuDots();
-      } else if(reading==3){
-        showIcons(F("Networks"), 240);
-        showMenuDots();
-      } else if(reading==4){
-        const char* p1name = configObj["p1"]["name"];
-        int p1icon = configObj["p1"]["icon"];
-        showIcons(p1name, p1icon);
-        showMenuDots();
-      } else if(reading==5){
-        const char* p2name = configObj["p2"]["name"];
-        int p2icon = configObj["p2"]["icon"];
-        showIcons(p2name, p2icon);
-        showMenuDots();
-      } else if(reading==6){
-        const char* p3name = configObj["p3"]["name"];
-        int p3icon = configObj["p3"]["icon"];
-        showIcons(p3name, p3icon);
-        showMenuDots();
-      } else if(reading==7){
-        showIcons(F("Update"), 225);
-        showMenuDots();
-      } else if(reading==8){
-        showIcons(F("About"), 2);
-        showMenuDots();
-      } else {
-        showIcons(F(""), 6);
+      switch(level){
+        case 0:
+          firstMenu(reading);
+          break;
+        default:
+          break;
       }
+      
       
       lastTime2 = currentTime;
     }
@@ -658,29 +738,15 @@ void loop(void) {
 
   }
   if(currentTime >= (lastTime2 + 2000)) {
-    if(reading==1){
-      if(configObj["face"]["analog"]){
-        printLocalTime();
-      }else{
-        showWatchFace(F("face"));
+    
+      switch(level){
+        case 0:
+          firstMenuSelect(reading);
+          break;
+        default:
+          break;
       }
-    } else if(reading==2){
-      getWeather();
-    } else if(reading==3){
-      printNetwork();
-    } else if(reading==4){
-      showWatchFace(F("p1"));
-    } else if(reading==5){
-      showWatchFace(F("p2"));
-    } else if(reading==6){
-      showWatchFace(F("p3"));
-    } else if(reading==7){
-      getUpdateGit();
-    } else if(reading==8){
-      showIcons("Puntly Chronus v."+ String(getLocalVersion), 225); 
-    } else {
-      printText("true", 1, 0, 16, "true", "");
-    }
+    
     lastTime2 = currentTime;
   }
 }
