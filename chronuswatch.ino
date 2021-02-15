@@ -14,9 +14,9 @@
 WebServer server(80);
 HTTPClient http;
 
-const char* host = "P";
+const char* host = "Puntly";
 const char* ssid = "g";
-const char* password = "carsled100";
+const char* password = "ca";
 
 JSONVar configObj;
 
@@ -67,11 +67,10 @@ int getLocalVersion = 0;
   // Pin definitions
   const int pinA = 26;
   const int pinB = 25;
-  const int pinC = 27;
+
   // Storing the readings
   boolean encA;
   boolean encB;
-  boolean encC;
   boolean lastA = false;
 
   int level = 0;
@@ -130,6 +129,61 @@ bool waitATime(int sec){
     return true;
   }
   last = now;
+}
+
+
+
+
+
+
+
+int val;
+int encoder0Pos = 0;
+int encoder0PinALast = LOW;
+int n = LOW;
+int nb = LOW;
+int C = 100;
+int lastC = LOW;
+String caracteres[] = {"A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z"," ",".",",","?","0","1","2","3","4","5","6","7","8","9","+","-","*","/","SAIR"};
+
+String typeText(){
+  String texto = "";
+  unsigned long lastTime;
+  unsigned long currentTime = millis();
+    while(true){
+      currentTime = millis();
+      
+      if( currentTime >= (lastTime + 5)){
+          n = digitalRead(pinA);
+          nb = digitalRead(pinB);
+          C = touchRead(T7);
+          if ((encoder0PinALast == LOW) && (n == HIGH)) {
+            if (nb == LOW) {
+              if (encoder0Pos > 0){encoder0Pos--;}
+            } else {
+              if (encoder0Pos < 44){encoder0Pos++;}
+            }
+            
+            printText("true", 1, 0, 10, "true", caracteres[encoder0Pos]);
+            
+          }
+            if(C == 0 && lastC >10){
+              if (caracteres[encoder0Pos] == "SAIR"){break;}
+              texto = texto + caracteres[encoder0Pos];
+            }
+            printText("false", 1, 0, 20, "true", texto);
+
+            display.setTextSize(1);
+            display.setCursor(0, 30);
+            display.println(C);
+            display.display();
+          lastTime = currentTime;
+          lastC = C;
+          encoder0PinALast = n;
+      }
+    }
+
+  return texto;
 }
 
 ///////////////////////////////////////////PRINT TEXT
@@ -487,7 +541,6 @@ void setup() {
   Serial.begin(115200);
   pinMode(pinA, INPUT_PULLUP);
   pinMode(pinB, INPUT_PULLUP);
-  pinMode(pinC, INPUT_PULLUP);
   currentTime = millis();
   lastTime = currentTime; 
   touchAttachInterrupt(T7, callback, Threshold);
@@ -676,7 +729,9 @@ void firstMenuSelect(int numero){
     } else if(numero==3){
       printNetwork();
     } else if(numero==4){
-      showWatchFace(F("p1"));
+      String texto = typeText();
+        showIcons(texto, 6);
+      
     } else if(numero==5){
       showWatchFace(F("p2"));
     } else if(numero==6){
@@ -701,6 +756,7 @@ void loop(void) {
     // read the two pins
     encA = digitalRead(pinA);
     encB = digitalRead(pinB);
+
     // check if A has gone from high to low
     if ((!encA) && (lastA)) {
       // check if B is high
@@ -723,6 +779,9 @@ void loop(void) {
       }
       switch(level){
         case 0:
+          firstMenu(reading);
+          break;
+        case 1:
           firstMenu(reading);
           break;
         default:
