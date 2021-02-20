@@ -548,9 +548,7 @@ void showWatchFace(String from){
       int param1 = face["param1"];
       int param2 = face["param2"];
 
-      myWeather[param1][param2]
-      
-      
+      const char* param = myWeather[param1][param2];
       
       const char* i = face["i"];
       const char* c = face["c"];
@@ -607,11 +605,11 @@ void setup() {
     password = configObj["wifi"][i]["password"];
   
     WiFi.begin(ssid , password);
-
-    int16_t tentativas = 0;
+    showIcons(F("WiFi"), 225);
+    int tentativas = 0;
 
     while (WiFi.status() != WL_CONNECTED && tentativas < 10) {
-      showIcons(F("Wait"), 225);
+      showIcons(ssid + ' ' + String(tentativas) , 225);
       delay(500);
       tentativas++;
     }
@@ -621,7 +619,7 @@ void setup() {
   if(!conectado){
 ///////////////////////////////////////////AP IF CAN'T CONNECT TO WIFI
     WiFi.softAP("Puntly","12345678",1,13);
-    printText("true", 1, 0 ,0, "true", "Can't connect to WiFi");
+    printText("true", 1, 0 ,0, "true", F("Can't connect to WiFi"));
     delay(5000);
   }else{
 ///////////////////////////////////////////IF CONNECTED TO WIFI
