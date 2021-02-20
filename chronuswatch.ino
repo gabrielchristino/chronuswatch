@@ -159,22 +159,19 @@ String typeText(){
       currentTime = millis();
       
       if( currentTime >= (lastTime + 5)){
+          C = touchRead(T7);
           n = digitalRead(pinA);
           nb = digitalRead(pinB);
-            Serial.print("a");
-            Serial.println(n);
-            Serial.print("b");
-            Serial.println(nb);
-          C = touchRead(T7);
-          if ((encoder0PinALast == HIGH) && (n == LOW)) {
-            if (nb == HIGH) {
+          if (encoder0PinALast && !n) {
+            Serial.println("1");
+            if (nb) {
+            Serial.println("2");
               if (encoder0Pos > 0){encoder0Pos--;}
             } else {
+            Serial.println("3");
               if (encoder0Pos < 44){encoder0Pos++;}
             }
           }
-            lastTime = currentTime;
-            encoder0PinALast = n;
             
             printText("true", 1, 0, 10, "true", caracteres[encoder0Pos]);
             if(C == 0 && lastC >10){
@@ -188,6 +185,8 @@ String typeText(){
             display.println(C);
             display.display();
             lastC = C;
+            lastTime = currentTime;
+            encoder0PinALast = n;
       }
     }
 
