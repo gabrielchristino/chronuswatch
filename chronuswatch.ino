@@ -19,6 +19,7 @@ const char* ssid = "g";
 const char* password = "ca";
 
 JSONVar configObj;
+JSONVar myWeather;
 
 ///////////////////////////////////////////WEATHER
 String endpoint = "http://api.openweathermap.org/data/2.5/weather?id=3448439&units=metric&APPID=f1f3dfaf4301e0686904b2057957ddc9";
@@ -147,6 +148,9 @@ int lastC = LOW;
 String caracteres[] = {"A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z"," ",".",",","?","0","1","2","3","4","5","6","7","8","9","+","-","*","/","SAIR"};
 
 String typeText(){
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+  display.cp437(true);
   String texto = "";
   unsigned long lastTime;
   unsigned long currentTime = millis();
@@ -157,16 +161,17 @@ String typeText(){
           n = digitalRead(pinA);
           nb = digitalRead(pinB);
           C = touchRead(T7);
-          if ((encoder0PinALast == LOW) && (n == HIGH)) {
-            if (nb == LOW) {
+          if ((encoder0PinALast == HIGH) && (n == LOW)) {
+            if (nb == HIGH) {
               if (encoder0Pos > 0){encoder0Pos--;}
             } else {
               if (encoder0Pos < 44){encoder0Pos++;}
             }
+          }
+            lastTime = currentTime;
+            encoder0PinALast = n;
             
             printText("true", 1, 0, 10, "true", caracteres[encoder0Pos]);
-            
-          }
             if(C == 0 && lastC >10){
               if (caracteres[encoder0Pos] == "SAIR"){break;}
               texto = texto + caracteres[encoder0Pos];
@@ -177,9 +182,7 @@ String typeText(){
             display.setCursor(0, 30);
             display.println(C);
             display.display();
-          lastTime = currentTime;
-          lastC = C;
-          encoder0PinALast = n;
+            lastC = C;
       }
     }
 
@@ -257,16 +260,16 @@ String httpGETRequest(const char* serverName) {
 void getWeather(){
       printText("true", 1, 0, 0, "false", F("       Weather       "));
       payloadWeather = payloadWeather.length()>0?payloadWeather: httpGETRequest(endpoint.c_str());
-      JSONVar myObject = JSON.parse(payloadWeather);
+      myWeather = JSON.parse(payloadWeather);
   
-      if (JSON.typeof(myObject) == "undefined") {
+      if (JSON.typeof(myWeather) == "undefined") {
         showIcons(F("Error to get weather"), 19); 
         return;
       }
       
-      const char* description = myObject["weather"][0]["description"];
-      double gettemp = myObject["main"]["temp"];
-      int iconTemp = myObject["weather"][0]["id"];
+      const char* description = myWeather["weather"][0]["description"];
+      double gettemp = myWeather["main"]["temp"];
+      int iconTemp = myWeather["weather"][0]["id"];
       display.setTextColor(SSD1306_WHITE);
       //display.clearDisplay();
       display.cp437(true);
@@ -528,6 +531,26 @@ void showWatchFace(String from){
       int x = face["x"];
       int w = face["w"];
       int h = face["h"];
+      int r = face["r"];
+      int color = face["color"];
+      bool fill = face["fill"];
+      if(fill){
+        display.drawRoundRect(x, y, w, h, r, color);
+      } else {
+        display.fillRoundRect(x, y, w, h, r, color);
+      }
+      
+      display.display();
+    }
+    if(type == 10){
+      int y = face["y"];
+      int x = face["x"];
+      int param1 = face["param1"];
+      int param2 = face["param2"];
+
+      myWeather[param1][param2]
+      
+      
       
       const char* i = face["i"];
       const char* c = face["c"];
