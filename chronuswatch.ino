@@ -148,6 +148,7 @@ int lastC = LOW;
 String caracteres[] = {"A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z"," ",".",",","?","0","1","2","3","4","5","6","7","8","9","+","-","*","/","SAIR"};
 
 String typeText(){
+  encoder0Pos = 0;
   display.clearDisplay();
   display.setTextColor(SSD1306_WHITE);
   display.cp437(true);
@@ -160,6 +161,10 @@ String typeText(){
       if( currentTime >= (lastTime + 5)){
           n = digitalRead(pinA);
           nb = digitalRead(pinB);
+            Serial.print("a");
+            Serial.println(n);
+            Serial.print("b");
+            Serial.println(nb);
           C = touchRead(T7);
           if ((encoder0PinALast == HIGH) && (n == LOW)) {
             if (nb == HIGH) {
@@ -609,8 +614,10 @@ void setup() {
     int tentativas = 0;
 
     while (WiFi.status() != WL_CONNECTED && tentativas < 10) {
-      showIcons(ssid + ' ' + String(tentativas) , 225);
-      delay(500);
+      showIcons(ssid , 225);
+      delay(250);
+      showIcons(String(tentativas) , 225);
+      delay(250);
       tentativas++;
     }
     if(WiFi.status() == WL_CONNECTED){conectado=true;break;}
