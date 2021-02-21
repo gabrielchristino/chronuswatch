@@ -138,57 +138,77 @@ bool waitATime(int sec){
 
 
 
-int val;
-int encoder0Pos = 0;
-int encoder0PinALast = LOW;
-int n = LOW;
-int nb = LOW;
+unsigned long lastTimeKey = 0;
+unsigned long currentTimeKey;
+int encAKey;
+int encBKey;
+int lastAKey;
+int readingKey = 0;
+int changeamntKey = 1;
+int highestKey = 44;
+int lowestKey = 0;
 int C = 100;
-int lastC = LOW;
+int lastC = 100;
 String caracteres[] = {"A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z"," ",".",",","?","0","1","2","3","4","5","6","7","8","9","+","-","*","/","SAIR"};
 
 String typeText(){
-  encoder0Pos = 0;
   display.clearDisplay();
   display.setTextColor(SSD1306_WHITE);
   display.cp437(true);
   String texto = "";
-  unsigned long lastTime;
-  unsigned long currentTime = millis();
-    while(true){
-      currentTime = millis();
-      
-      if( currentTime >= (lastTime + 5)){
-          C = touchRead(T7);
-          n = digitalRead(pinA);
-          nb = digitalRead(pinB);
-          if (encoder0PinALast && !n) {
-            Serial.println("1");
-            if (nb) {
-            Serial.println("2");
-              if (encoder0Pos > 0){encoder0Pos--;}
-            } else {
-            Serial.println("3");
-              if (encoder0Pos < 44){encoder0Pos++;}
-            }
+  while(true){
+    
+  display.clearDisplay();
+  // Read elapsed time
+    currentTimeKey = millis();
+  
+    // Check if it's time to read
+    if(currentTimeKey >= (lastTimeKey + 5)) {
+      // read the two pins
+      encAKey = digitalRead(pinA);
+      encBKey = digitalRead(pinB);
+      C = touchRead(T7);
+  
+      // check if A has gone from high to low
+      if ((!encAKey) && (lastAKey)) {
+        // check if B is high
+        if (encBKey) {
+          // clockwise
+          if (readingKey + changeamntKey <= highestKey) {
+            readingKey = readingKey + changeamntKey; 
+          } else {
+            readingKey = lowestKey;
           }
-            
-            printText("true", 1, 0, 10, "true", caracteres[encoder0Pos]);
+        }
+        else
+        {
+          // anti-clockwise
+          if (readingKey - changeamntKey >= lowest) {
+            readingKey = readingKey - changeamntKey; 
+          } else {
+            readingKey = highestKey;
+          }
+        }
+      }
+      // store reading of A and millis for next loop
+      lastAKey = encAKey;
+      lastTimeKey = currentTimeKey;
+    }
             if(C == 0 && lastC >10){
-              if (caracteres[encoder0Pos] == "SAIR"){break;}
-              texto = texto + caracteres[encoder0Pos];
+              if (caracteres[readingKey] == "SAIR"){break;}
+              texto = texto + caracteres[readingKey];
             }
-            printText("false", 1, 0, 20, "true", texto);
 
             display.setTextSize(1);
+            display.setCursor(0, 0);
+            display.println(caracteres[readingKey]);
+            display.setCursor(0, 20);
+            display.println(texto);
             display.setCursor(0, 30);
             display.println(C);
             display.display();
             lastC = C;
-            lastTime = currentTime;
-            encoder0PinALast = n;
-      }
-    }
+  }
 
   return texto;
 }
@@ -756,9 +776,11 @@ void firstMenuSelect(int numero){
     } else if(numero==3){
       printNetwork();
     } else if(numero==4){
-      String texto = typeText();
+        String texto = typeText();
         showIcons(texto, 6);
-      
+        if(waitATime(4000)){
+          reading=8;
+        }
     } else if(numero==5){
       showWatchFace(F("p2"));
     } else if(numero==6){
