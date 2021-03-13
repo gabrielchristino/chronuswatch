@@ -11,6 +11,17 @@
 #include <WebServer.h>
 #include <ESPmDNS.h>
 
+
+///////////////////////////////////////////BLUETOOTH
+#include <BLEDevice.h>
+#include <BLEUtils.h>
+#include <BLEServer.h>
+
+#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+#define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+
+String valor;
+
 WebServer server(80);
 HTTPClient http;
 
@@ -20,6 +31,7 @@ const char* password = "ca";
 
 JSONVar configObj;
 JSONVar myWeather;
+
 
 ///////////////////////////////////////////WEATHER
 String endpoint = "http://api.openweathermap.org/data/2.5/weather?id=3448439&units=metric&APPID=f1f3dfaf4301e0686904b2057957ddc9";
@@ -581,6 +593,44 @@ void showWatchFace(String from){
 
   }
 }
+///////////////////////////////////////////BLUETOOTH
+class MyCallbacks: public BLECharacteristicCallbacks {
+    void onWrite(BLECharacteristic *pCharacteristic) {
+      std::string value = pCharacteristic->getValue();
+
+      if (value.length() > 0) {
+        valor = "";
+        for (int i = 0; i < value.length(); i++){
+          // Serial.print(value[i]); // Presenta value.
+          valor = valor + value[i];
+        }
+        printText("true", 1, 0, 0, "false", "   New notification  ");
+        printText("false", 1, 0, 9, "true", valor);
+      }
+    }
+};
+
+
+void configBLE() {
+  showIcons(F("Wait for BLE"), 225); 
+
+  BLEDevice::init("PuntlyChronus");
+  BLEServer *pServer = BLEDevice::createServer();
+  BLEService *pService = pServer->createService(SERVICE_UUID);
+  BLECharacteristic *pCharacteristic = pService->createCharacteristic(
+                                         CHARACTERISTIC_UUID,
+                                         BLECharacteristic::PROPERTY_READ |
+                                         BLECharacteristic::PROPERTY_WRITE
+                                       );
+
+  pCharacteristic->setCallbacks(new MyCallbacks());
+  pCharacteristic->setValue("Hello Puntly Chronus");
+  pService->start();
+
+  BLEAdvertising *pAdvertising = pServer->getAdvertising();
+  pAdvertising->start();
+}
+
 
 void setup() {
   Serial.begin(115200);
@@ -620,7 +670,7 @@ void setup() {
   int weatherId = configObj["configuration"]["weatherId"];
   endpoint = "http://api.openweathermap.org/data/2.5/weather?id=" + String(weatherId) + "&units=metric&APPID=f1f3dfaf4301e0686904b2057957ddc9";
   
-
+  configBLE();
 ///////////////////////////////////////////WIFI
   JSONVar wifiConfig = configObj["wifi"];
   bool conectado = false;
@@ -634,9 +684,7 @@ void setup() {
 
     while (WiFi.status() != WL_CONNECTED && tentativas < 10) {
       showIcons(ssid , 225);
-      delay(250);
-      showIcons(String(tentativas) , 225);
-      delay(250);
+      delay(500);
       tentativas++;
     }
     if(WiFi.status() == WL_CONNECTED){conectado=true;break;}
@@ -716,6 +764,7 @@ void setup() {
   delay(100);
   display.clearDisplay();
   display.display();
+  
 }
 
 
