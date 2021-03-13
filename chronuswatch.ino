@@ -767,6 +767,31 @@ void setup() {
   }, []() {
     HTTPUpload& upload = server.upload();
   });
+///////////////////////////////////////////GET NOTIFICATION
+  server.on("/getjson", HTTP_POST, []() {
+    server.sendHeader("Connection", "close");
+    showIcons(F("Updating..."), 225);
+
+    payloadConfigJson = server.arg("jsontext");
+
+    JSONVar myGit = JSON.parse(payloadConfigJson);
+  
+    if (JSON.typeof(myGit) == "undefined") {
+      showIcons(F("Error to get git"), 19); 
+      return;
+    }
+
+    configFile = SPIFFS.open("/config.json",FILE_WRITE);
+    configFile.print(payloadConfigJson);
+    configFile.close();
+    showIcons(F("Update Success!"), 225);
+    ESP.restart();
+    
+    server.send(200, "text/plain", "updated");
+
+  }, []() {
+    HTTPUpload& upload = server.upload();
+  });
 
   server.begin();
   delay(100);
