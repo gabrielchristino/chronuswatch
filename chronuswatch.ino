@@ -599,13 +599,21 @@ class MyCallbacks: public BLECharacteristicCallbacks {
       std::string value = pCharacteristic->getValue();
 
       if (value.length() > 0) {
-        valor = "";
+        display.clearDisplay();
+        /*valor = "";
         for (int i = 0; i < value.length(); i++){
-          // Serial.print(value[i]); // Presenta value.
           valor = valor + value[i];
+        }*/
+        //printText("true", 1, 0, 0, "false", "   New notification  ");
+        display.setTextSize(1);
+        display.setCursor(0, 0);
+        for (int i = 0; i < value.length(); i++){
+          display.print(value[i]);
         }
-        printText("true", 1, 0, 0, "false", "   New notification  ");
-        printText("false", 1, 0, 9, "true", valor);
+       
+        //printText("false", 1, 0, 0, "true", valor);
+        display.display();
+        delay(3000);
       }
     }
 };
