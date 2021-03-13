@@ -570,10 +570,10 @@ void showWatchFace(String from){
       int r = face["r"];
       int color = face["color"];
       bool fill = face["fill"];
-      if(fill){
-        display.drawRoundRect(x, y, w, h, r, color);
+      if(!fill){
+        display.drawRoundRect(x, y, w, h, 1, SSD1306_WHITE);
       } else {
-        display.fillRoundRect(x, y, w, h, r, color);
+        display.fillRoundRect(x, y, w, h, 1, SSD1306_WHITE);
       }
       
       display.display();
@@ -833,11 +833,12 @@ void firstMenuSelect(int numero){
     } else if(numero==3){
       printNetwork();
     } else if(numero==4){
-        String texto = typeText();
+        /*String texto = typeText();
         showIcons(texto, 6);
         if(waitATime(4000)){
           reading=8;
-        }
+        }*/
+      showWatchFace(F("p1"));
     } else if(numero==5){
       showWatchFace(F("p2"));
     } else if(numero==6){
