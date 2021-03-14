@@ -21,6 +21,7 @@
 #define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
 
 String valor;
+boolean notify = false;
 
 WebServer server(80);
 HTTPClient http;
@@ -599,13 +600,13 @@ class MyCallbacks: public BLECharacteristicCallbacks {
       std::string value = pCharacteristic->getValue();
 
       if (value.length() > 0) {
-        display.clearDisplay();
-        /*valor = "";
+        valor = "";
         for (int i = 0; i < value.length(); i++){
           valor = valor + value[i];
-        }*/
-        //printText("true", 1, 0, 0, "false", "   New notification  ");
-        display.setTextSize(1);
+        }
+        notify = true;
+        /*printText("true", 1, 0, 0, "false", "   New notification  ");
+        /display.setTextSize(1);
         display.setCursor(0, 0);
         for (int i = 0; i < value.length(); i++){
           display.print(value[i]);
@@ -613,7 +614,7 @@ class MyCallbacks: public BLECharacteristicCallbacks {
        
         //printText("false", 1, 0, 0, "true", valor);
         display.display();
-        delay(3000);
+        delay(3000);*/
       }
     }
 };
@@ -929,7 +930,7 @@ void loop(void) {
 
   }
   if(currentTime >= (lastTime2 + 2000)) {
-    
+
       switch(level){
         case 0:
           firstMenuSelect(reading);
@@ -939,5 +940,13 @@ void loop(void) {
       }
     
     lastTime2 = currentTime;
+  }
+
+  if(valor != "" && notify){
+    printText("true", 1, 0, 0, "true", valor);
+    JSONVar notifyJson = configObj["p2"]["face"][1];
+    notifyJson["i"] = valor;
+    notify = false;
+    Serial.println(configObj);
   }
 }
