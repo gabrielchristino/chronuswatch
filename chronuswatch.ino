@@ -944,8 +944,7 @@ void loop(void) {
 
   if(valor != "" && notify){
     printText("true", 1, 0, 0, "true", valor);
-    JSONVar notifyJson = configObj["p2"]["face"][1];
-    notifyJson["i"] = valor;
+    configObj["p2"]["face"][1]["t"] = valor;
     notify = false;
     Serial.println(configObj);
   }
