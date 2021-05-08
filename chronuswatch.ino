@@ -2,11 +2,11 @@
 #include <Update.h>
 #include <time.h>
 #include <Arduino_JSON.h>
-
+#include <AsyncElegantOTA.h>;
 
 ///////////////////////////////////////////CONNECTIONS
 #include <HTTPClient.h>
-#include <WiFi.h>
+//#include <WiFi.h>
 #include <WiFiClient.h>
 #include <WebServer.h>
 #include <ESPmDNS.h>
@@ -721,7 +721,7 @@ void setup() {
     server.sendHeader("Connection", "close");
     server.send(200, "text/html", serverIndex);
   });
-  /*handling uploading firmware file */
+  /*handling uploading firmware file 
   server.on("/update", HTTP_POST, []() {
     server.sendHeader("Connection", "close");
     server.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
@@ -735,7 +735,7 @@ void setup() {
         Update.printError(Serial);
       }
     } else if (upload.status == UPLOAD_FILE_WRITE) {
-      /* flashing firmware to ESP*/
+      // flashing firmware to ESP
       if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
         Update.printError(Serial);
       }
@@ -746,7 +746,7 @@ void setup() {
         Update.printError(Serial);
       }
     }
-  });
+  });*/
 
 
 
@@ -793,7 +793,7 @@ void setup() {
   }, []() {
     HTTPUpload& upload = server.upload();
   });
-
+  AsyncElegantOTA.begin(&server);
   server.begin();
   delay(100);
   display.clearDisplay();
