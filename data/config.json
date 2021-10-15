@@ -1,8 +1,8 @@
 {
     "wireless":[
-        {"ssid":"gtchris100", "passwd":"carsled100"},
-        {"ssid":"gchris100", "passwd":"carsled100"},
-        {"ssid":"nome", "passwd":"senha"}
+        {"ssid":"ssid1", "passwd":"passwd"},
+        {"ssid":"ssid2", "passwd":"passwd"},
+        {"ssid":"ssid3", "passwd":"passwd"}
     ],
     "sets":{
         "invert": false,
