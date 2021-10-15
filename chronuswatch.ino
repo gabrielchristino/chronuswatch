@@ -1,951 +1,1380 @@
-#include <Wire.h>
-#include <Update.h>
-#include <time.h>
-#include <Arduino_JSON.h>
-#include <AsyncElegantOTA.h>;
-
-///////////////////////////////////////////CONNECTIONS
+#include <Arduino.h>
+#include <WiFi.h>
 #include <HTTPClient.h>
-//#include <WiFi.h>
-#include <WiFiClient.h>
-#include <WebServer.h>
-#include <ESPmDNS.h>
-
-
-///////////////////////////////////////////BLUETOOTH
-#include <BLEDevice.h>
-#include <BLEUtils.h>
-#include <BLEServer.h>
-
-#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
-#define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
-
-String valor;
-boolean notify = false;
-
-WebServer server(80);
-HTTPClient http;
-
-const char* host = "Puntly";
-const char* ssid = "g";
-const char* password = "ca";
-
-JSONVar configObj;
-JSONVar myWeather;
-
-
-///////////////////////////////////////////WEATHER
-String endpoint = "http://api.openweathermap.org/data/2.5/weather?id=3448439&units=metric&APPID=f1f3dfaf4301e0686904b2057957ddc9";
-String payloadWeather;
-String payloadConfigJson;
-
-///////////////////////////////////////////NTP
-const char* ntpServer = "pool.ntp.org";
-long  gmtOffset_sec = -3*3600;
-const int   daylightOffset_sec = 3600;
-
-
-///////////////////////////////////////////DISPLAY
+#include <AsyncTCP.h>
+// #include <ESPAsyncWebServer.h>
+#include <SPIFFS.h>
+#include <FS.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
+#include <ArduinoJson.h>
+#include <ArduinoOTA.h>
+#include <ESPmDNS.h>
+#include <WiFiUdp.h>
+#include "driver/adc.h"
+#include <esp_system.h>
+#include <time.h>
+#include <sys/time.h>
+
+#include "driver/adc.h"
+#include <esp_wifi.h>
+#include <esp_bt.h>
+
+#include <fonts/RobotoMonoThin.h>
+
+//#include <BLEDevice.h>
+//#include <BLEUtils.h>
+//#include <BLEServer.h>
+
+//BLEServer *pServer;
+//BLEService *pService;
+//BLECharacteristic *pCharacteristic;
+
+//#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+//#define CHARACTERISTIC_UUID "beb5483e-36e1-4688-b7f5-ea07361b26a8"
 
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
-#define OLED_RESET    -1
+#define OLED_RESET -1
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
-
-
-///////////////////////////////////////////SPIFFS
-#include <SPIFFS.h>
-#include <FS.h>
+bool invertDisplayColor = false;
 
 File configFile;
 #define FORMAT_SPIFFS_IF_FAILED true
 
+#define capacity 800
+StaticJsonDocument<capacity> doc;
+StaticJsonDocument<capacity> weather;
 
+unsigned long previousMillisWiFiReconect = 0;
+#define interval 30000
 
-///////////////////////////////////////////VAR
-bool showMenu = false;
-int getLocalVersion = 0;
+// AsyncWebServer server(80);
 
-///////////////////////////////////////////ENCODER
-  int reading = 1;
-  int lowest = 0;
-  int highest = 8;
-  int changeamnt = 1;
-  // Timing for polling the encoder
-  unsigned long currentTime;
-  unsigned long lastTime;
-  unsigned long lastTime2;
-  byte screenTime = 3;
-  // Pin definitions
-  const int pinA = 26;
-  const int pinB = 25;
+const char *ntpServer = "pool.ntp.org";
+long gmtOffset_sec = -3 * 3600;
+#define daylightOffset_sec 3600
 
-  // Storing the readings
-  boolean encA;
-  boolean encB;
-  boolean lastA = false;
+JsonVariant auxVar;
+long byteGmtOffset;
+long secTimeout;
+String weatherId;
+long toSetTime = 0;
+//String timeBLE;
 
-  int level = 0;
-  int readLevel[5]= {1,0,0,0,0};
+JsonArray arrElements;
+JsonObject repo;
 
-  #define Threshold 40
+RTC_DATA_ATTR bool noTime = false;
+time_t lastSavedTime;
 
-///////////////////////////////////////////OTA HTML PAGE
-const char* serverIndex =
-"<script src='https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js'></script>"
-"<form method='POST' action='#' enctype='multipart/form-data' id='upload_form'>"
-   "<input type='file' name='update'>"
-        "<input type='submit' value='Update'>"
-    "</form>"
- "<div id='prg'>progress: 0%</div>"
- "<script>"
-  "$('form').submit(function(e){"
-  "e.preventDefault();"
-  "var form = $('#upload_form')[0];"
-  "var data = new FormData(form);"
-  " $.ajax({"
-  "url: '/update',"
-  "type: 'POST',"
-  "data: data,"
-  "contentType: false,"
-  "processData:false,"
-  "xhr: function() {"
-  "var xhr = new window.XMLHttpRequest();"
-  "xhr.upload.addEventListener('progress', function(evt) {"
-  "if (evt.lengthComputable) {"
-  "var per = evt.loaded / evt.total;"
-  "$('#prg').html('progress: ' + Math.round(per*100) + '%');"
-  "}"
-  "}, false);"
-  "return xhr;"
-  "},"
-  "success:function(d, s) {"
-  "console.log('success!')"
- "},"
- "error: function (a, b, c) {"
- "}"
- "});"
- "});"
- "</script>";
+bool isDigital = false;
 
-void callback(){
+bool enableAlarm = false;
+byte configAlarm = 0;
+
+byte alarmMin = 0;
+byte alarmHour = 0;
+
+#define Threshold 40
+void callback()
+{
   //placeholder callback function
 }
 
-bool waitATime(int sec){
+//unsigned long lastElements = 0;
+//void showWatch() {
+//  unsigned long now = millis();
+//  lastElements = lastElements == 0 ? now : lastElements;
+
+//  if (now >= lastElements + secTimeout*10000) {
+//    display.clearDisplay();
+//    display.display();
+//    esp_deep_sleep_start();
+//    WiFi.disconnect(true);
+//    WiFi.mode(WIFI_OFF);
+//    btStop();
+//
+//    adc_power_off();
+//    esp_wifi_stop();
+//    esp_bt_controller_disable();
+//  } else {
+//    printLocalTime();
+//  }
+//}
+
+/*void showElements() {
   unsigned long now = millis();
-  unsigned long last=0;
-
-  if(now>=last+sec){
-    now = millis();
-    return true;
+  lastElements = lastElements == 0 ? now : lastElements;
+  
+  if (now >= lastElements + secTimeout*1000) {
+    display.clearDisplay();
+    display.display();
+    esp_deep_sleep_start();
+  } else {
+    printElements();
   }
-  last = now;
+}*/
+
+void generalConfig()
+{
+  display.invertDisplay(doc["sets"]["invert"]);
+
+  auxVar = doc["sets"]["gmt"];
+  byteGmtOffset = auxVar.as<long>();
+
+  auxVar = doc["sets"]["timeout"];
+  secTimeout = auxVar.as<long>();
+
+  auxVar = doc["sets"]["weatherId"];
+  weatherId = auxVar.as<String>();
+
+  arrElements = doc["elements"].as<JsonArray>();
 }
 
-
-
-
-
-
-
-unsigned long lastTimeKey = 0;
-unsigned long currentTimeKey;
-int encAKey;
-int encBKey;
-int lastAKey;
-int readingKey = 0;
-int changeamntKey = 1;
-int highestKey = 44;
-int lowestKey = 0;
-int C = 100;
-int lastC = 100;
-String caracteres[] = {"A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z"," ",".",",","?","0","1","2","3","4","5","6","7","8","9","+","-","*","/","SAIR"};
-
-String typeText(){
-  display.clearDisplay();
+void printText(String text, byte x, byte y, byte textSize, byte displayTime, byte align, boolean clean = true)
+{
+  if (clean)
+  {
+    delay(displayTime);
+    display.clearDisplay();
+  }
   display.setTextColor(SSD1306_WHITE);
-  display.cp437(true);
-  String texto = "";
-  while(true){
-    
-  display.clearDisplay();
-  // Read elapsed time
-    currentTimeKey = millis();
-  
-    // Check if it's time to read
-    if(currentTimeKey >= (lastTimeKey + 5)) {
-      // read the two pins
-      encAKey = digitalRead(pinA);
-      encBKey = digitalRead(pinB);
-      C = touchRead(T7);
-  
-      // check if A has gone from high to low
-      if ((!encAKey) && (lastAKey)) {
-        // check if B is high
-        if (encBKey) {
-          // clockwise
-          if (readingKey + changeamntKey <= highestKey) {
-            readingKey = readingKey + changeamntKey; 
-          } else {
-            readingKey = lowestKey;
-          }
-        }
-        else
-        {
-          // anti-clockwise
-          if (readingKey - changeamntKey >= lowest) {
-            readingKey = readingKey - changeamntKey; 
-          } else {
-            readingKey = highestKey;
-          }
-        }
-      }
-      // store reading of A and millis for next loop
-      lastAKey = encAKey;
-      lastTimeKey = currentTimeKey;
-    }
-            if(C == 0 && lastC >10){
-              if (caracteres[readingKey] == "SAIR"){break;}
-              texto = texto + caracteres[readingKey];
-            }
-
-            display.setTextSize(1);
-            display.setCursor(0, 0);
-            display.println(caracteres[readingKey]);
-            display.setCursor(0, 20);
-            display.println(texto);
-            display.setCursor(0, 30);
-            display.println(C);
-            display.display();
-            lastC = C;
+  display.setTextSize(textSize);
+  if (align == 0)
+  {
+    display.setCursor(x, y);
   }
-
-  return texto;
-}
-
-///////////////////////////////////////////PRINT TEXT
-void printText(String cls, int tSize, int x, int y, String white, String text) {
-  if(cls=="true"){display.clearDisplay();}
-
-  if(white=="true"){display.setTextColor(SSD1306_WHITE);}else{display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);}
-
-  display.setTextSize(tSize);
-  display.setCursor(x, y);
+  else if (align == 1)
+  {
+    display.setCursor(0, y);
+  }
+  else if (align == 2)
+  {
+    const int newX = 64 - ((text.length() * 6 * textSize) / 2);
+    display.setCursor(newX, y);
+  }
+  else if (align == 3)
+  {
+    const int newX = 128 - (text.length() * 6);
+    display.setCursor(newX, y);
+  }
   display.println(text);
   display.display();
+
+  if (clean)
+  {
+    delay(displayTime);
+  }
 }
 
-///////////////////////////////////////////SHOW AN ICON WITH TEXT
-void showIcons(String text, int icon){
+void setWifiOff()
+{
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+  printText(F("WiFi disconnected"), 0, 30, 1, 2000, 2);
+}
+
+void printTextArray(String textos[8] = {})
+{
   display.clearDisplay();
-  display.setTextColor(SSD1306_WHITE);
-  display.cp437(true);
-  display.setTextSize(5);
-  display.setCursor(55, 0); 
-  display.write(icon);
-
-  int left = (128-text.length()*6)/2;
-
-  printText("false",1,left,50,"true",text);
-}
-
-///////////////////////////////////////////INVERT COLOR
-void invertColor(bool invertD){
-  display.invertDisplay(invertD);
-}
-
-///////////////////////////////////////////SHOW MENU
-void showMenuDots(){
-  for(int16_t i=1; i<9; i+=1) {
-    display.fillRect(120, i*8 - 8, 4, 4, 1);
-    display.fillRect(121, i*8-7, 2, 2, (i==reading?1:0));
+  display.setTextSize(1);
+  int y = 0;
+  for (int i = 0; i < 8; i++)
+  {
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0, y);
+    if (textos[i].substring(0, 1) == "<")
+    {
+      display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+      display.setCursor(64 - ((textos[i].substring(1).length() * 6) / 2), y);
+      display.fillRect(0, y, display.width(), 8, SSD1306_WHITE);
+    }
+    if (textos[i].substring(0, 1) == ">")
+    {
+      display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+      display.fillRect(0, y, display.width(), 8, SSD1306_WHITE);
+    }
+    display.println(textos[i].substring(1));
+    y += 8;
   }
   display.display();
 }
-void printNetwork(){
-    printText("true", 1, 0, 0, "false", F("       Network       "));
-    
-    printText("false", 1, 0, 15, "true", F("You are connected to:"));
-    printText("false", 1, 0, 25, "true", ssid);
-    printText("false", 1, 0, 35, "true", F("Your IP address is:"));
-    printText("false", 1, 0, 45, "true", WiFi.localIP().toString().c_str());
+
+//void configBLE() {
+//  BLEDevice::init("ChronusWatch");
+//  pServer = BLEDevice::createServer();
+//  pService = pServer->createService(SERVICE_UUID);
+//  pCharacteristic = pService->createCharacteristic(
+//                                         CHARACTERISTIC_UUID,
+//                                         BLECharacteristic::PROPERTY_READ |
+//                                         BLECharacteristic::PROPERTY_WRITE
+//                                       );
+//  //pCharacteristic->setValue("Hello, I'm Puntly Chronus!");
+//  pService->start();
+//  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+//  pAdvertising->addServiceUUID(SERVICE_UUID);
+//  pAdvertising->setScanResponse(true);
+//  pAdvertising->setMinPreferred(0x06);  // functions that help with iPhone connections issue
+//  pAdvertising->setMinPreferred(0x12);
+//  BLEDevice::startAdvertising();
+//}
+
+void initSPIFFS()
+{
+  if (SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED))
+  {
+    display.clearDisplay();
+    display.display();
+    if (SPIFFS.exists("/config.json"))
+    {
+      File configFile = SPIFFS.open("/config.json", "r");
+      if (configFile)
+      {
+        DeserializationError error = deserializeJson(doc, configFile);
+        if (error)
+          printText(F("Failed to read file, using default configuration"), 0, 0, 1, 3000, 0);
+        configFile.close();
+      }
+    }
+  }
+  else
+  {
+    printText(F("An error has occurred while mounting SPIFFS"), 0, 0, 1, 3000, 0);
+    display.clearDisplay();
+    display.display();
+  }
+
+  isDigital = getSPIFFS("isDigital.txt");
 }
 
-String httpGETRequest(const char* serverName) {
-  HTTPClient http;
+byte calcDayOfWeek(int d, int m, int y)
+{
+  static int t[] = {0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4};
+  y -= m < 3;
+  return (y + y / 4 - y / 100 + y / 400 + t[m - 1] + d) % 7; // Sun=0, Mon=1, Tue=2, Wed=3, Thu=4, Fri=5, Sat=6
+}
+
+void createCalendar()
+{
+  display.clearDisplay();
+  time_t now = time(nullptr);
+  struct tm *p_tm;
+  p_tm = localtime(&now);
+
+  byte fev = ((p_tm->tm_year + 1900) % 4 == 0) ? 1 : 0;
+  byte daysInMonth[12] = {31, 28 + fev, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+  display.setTextSize(1);
+
+  byte x = 18;
+  byte y = 9;
+  byte week = 0;
+  display.fillRect(0, 0, display.width() - 1, 9, SSD1306_WHITE);
+  String weekDays[7] = {"S", "M", "T", "W", "T", "F", "S"};
+  for (byte i = 0; i < 7; i++)
+  {
+    display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+    display.setCursor(x * i + 7, 1);
+    display.println(String(weekDays[i]));
+  }
+  for (byte i = 1; i <= daysInMonth[p_tm->tm_mon]; i++)
+  {
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(x * calcDayOfWeek(i, p_tm->tm_mon + 1, (p_tm->tm_year + 1900)) + 4, y * week + 10);
+    if (String(i) == String(p_tm->tm_mday))
+    {
+      display.fillRect(x * calcDayOfWeek(i, p_tm->tm_mon + 1, (p_tm->tm_year + 1900)) + 1, y * week + 10, 18, 9, SSD1306_WHITE);
+      display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+    }
+    display.println(String(i));
+    if (calcDayOfWeek(i, p_tm->tm_mon + 1, (p_tm->tm_year + 1900)) == 6)
+    {
+      week++;
+    }
+  }
+  for (byte i = 0; i <= 8; i++)
+  {
+    display.drawLine(i * x, 0, i * x, display.height(), WHITE);
+    display.drawLine(0, i * y, display.width() - 2, i * y, WHITE);
+  }
+  display.display();
+}
+
+void getFile(String fileName)
+{
+  display.clearDisplay();
+  display.display();
+  if (SPIFFS.exists("/" + fileName))
+  {
+    File configFile = SPIFFS.open("/" + fileName, "r");
+    while (configFile.available())
+    {
+      lastSavedTime = configFile.readStringUntil('\n').toInt();
+      time_t now = lastSavedTime;
+      struct tm *p_tm;
+      p_tm = localtime(&now);
+
+      now = mktime(p_tm);
+
+      timeval tv;
+      tv.tv_sec = now;
+      settimeofday(&tv, NULL);
+      settimeofday(&tv, NULL);
+
+      delay(1000);
+    }
+    configFile.close();
+  }
+}
+
+String getSPIFFS(String fileName)
+{
+  display.clearDisplay();
+  display.display();
+  if (SPIFFS.exists("/" + fileName))
+  {
+    File configFile = SPIFFS.open("/" + fileName, "r");
+    while (configFile.available())
+    {
+      return configFile.readStringUntil('\n');
+    }
+    configFile.close();
+  }
+}
+
+void saveSPIFFS(String fileName, String dados)
+{
+  if (SPIFFS.exists("/" + fileName))
+  {
+    File configFile = SPIFFS.open("/" + fileName, FILE_WRITE);
+    if (configFile)
+    {
+      configFile.println(dados);
+      configFile.close();
+    }
+  }
+}
+
+void setGMT()
+{
+  if (WiFi.status() != WL_CONNECTED)
+  {
+    delay(500);
+    while (time(nullptr) == 0)
+    {
+      getFile("lastSavedTime.txt");
+    }
     
-  http.begin(serverName);
-  
-  int httpResponseCode = http.GET();
-  
-  String payload = "{}"; 
-  while(1){
-    if (httpResponseCode>0) {
-      payload = http.getString();
+    timeval tv;
+    tv.tv_sec = time(nullptr)-10800;
+    settimeofday(&tv, NULL);
+
+    //    time_t now = lastSavedTime;
+    //    struct tm* p_tm;
+    //    p_tm = localtime(&now);
+    //
+    //    if(noTime){
+    //      p_tm->tm_sec += 1;
+    //      p_tm->tm_min += 1;
+    //      p_tm->tm_hour += 1;
+    //      p_tm->tm_mday += 1;
+    //      p_tm->tm_mon += 9;
+    //      p_tm->tm_year += 2021-1970;
+    //    }
+    //
+    //    now = mktime(p_tm);
+    //
+    //    timeval tv;
+    //    tv.tv_sec = now;
+    //    settimeofday(&tv, NULL);
+  }
+  else if (WiFi.status() == WL_CONNECTED)
+  {
+    gmtOffset_sec = byteGmtOffset * 3600;
+    configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+    byte count = 0;
+    while (!time(nullptr) && count < 50)
+    {
+      printText(F("Setting time"), 0, 30, 1, 10, 2);
+      count++;
+    }
+    timeval tv;
+    tv.tv_sec = time(nullptr);
+    settimeofday(&tv, NULL);
+  }
+}
+
+void initWiFi()
+{
+  WiFi.mode(WIFI_STA);
+  JsonArray arr = doc["wireless"].as<JsonArray>();
+
+  for (JsonObject repo : arr)
+  {
+    const char *ssid = repo["ssid"];
+    const char *passwd = repo["passwd"];
+
+    byte count = 0;
+    WiFi.begin(ssid, passwd);
+    WiFi.setHostname("ChronusWatch");
+    while (WiFi.status() != WL_CONNECTED && count < 10)
+    {
+      printText(F("Trying WiFi"), 0, 30, 1, 1000, 2);
+      count++;
+    }
+    if (WiFi.status() == WL_CONNECTED)
+    {
+      printText(F("Connected to WiFi"), 0, 30, 1, 3000, 2);
       break;
     }
   }
+  if (WiFi.status() != WL_CONNECTED)
+  {
+    printText(F("Can't connect to WiFi"), 0, 30, 1, 3000, 2);
+  }
+}
+
+void initDisplay()
+{
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C))
+  {
+    for (;;)
+      ;
+  }
+  display.display();
+  delay(1000);
+  display.clearDisplay();
+  display.setFont(&Roboto_Mono_Thin_8);
+  display.display();
+  display.cp437(true);
+}
+
+// void printElements()
+// {
+//   for (byte i = 0; i < doc["elements"].size(); i += 1)
+//   {
+//     const byte type = doc["elements"][i]["type"];
+//     if (type == 0)
+//     {
+//       const byte x = doc["elements"][i]["x"];
+//       const byte y = doc["elements"][i]["y"];
+//       const byte w = doc["elements"][i]["w"];
+//       const byte h = doc["elements"][i]["h"];
+//       const byte r = doc["elements"][i]["r"];
+//       const bool f = doc["elements"][i]["f"];
+//       if (f)
+//         display.fillRoundRect(x, y, w, h, 1, SSD1306_WHITE);
+//       if (!f)
+//         display.drawRoundRect(x, y, w, h, 1, SSD1306_WHITE);
+//     }
+//     else if (type == 1)
+//     {
+//       const String txt = doc["elements"][i]["txt"];
+//       const byte x = doc["elements"][i]["x"];
+//       const byte y = doc["elements"][i]["y"];
+//       const byte s = doc["elements"][i]["s"];
+//       const byte tm = doc["elements"][i]["tm"];
+//       const byte align = doc["elements"][i]["alg"];
+//       printText(txt, x, y, s, tm, align);
+//     }
+//   }
+//   display.display();
+// }
+const unsigned char epd_bitmap_wifi[] PROGMEM = {0x3c, 0xff, 0x81, 0x00, 0x3c, 0x42, 0x00, 0x18};
+const unsigned char epd_bitmap_sino[] PROGMEM = {0x18, 0x3c, 0x3c, 0x7e, 0x7e, 0xff, 0xff, 0x18};
+void printLocalTime()
+{
+  display.clearDisplay();
+  time_t now = time(nullptr);
+  struct tm *p_tm;
+  p_tm = localtime(&now);
+
+  if(p_tm->tm_hour == alarmHour && p_tm->tm_min == alarmMin && p_tm->tm_sec % 2 == 0){
+    display.invertDisplay(true);
+  } else {
+    display.invertDisplay(false);
+  }
+
+  if(isDigital) {
+    display.clearDisplay();
+    
+    display.setTextSize(1);
+    display.setCursor(73, 1);
+    String wday[7] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+    display.fillRect(0, 0, 128, 10, SSD1306_WHITE);
+    display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
+    display.println( (p_tm->tm_mday<10?"0":"") + String(p_tm->tm_mday) + (p_tm->tm_sec % 2 == 0 ? "/":" " ) + (p_tm->tm_mon<10?"0":"")+String(p_tm->tm_mon) + " " + wday[p_tm->tm_wday] );
+    
+    display.setTextSize(3);
+    display.drawRoundRect(0, 15, 128, 49, 5, SSD1306_WHITE);
+    display.setTextColor(SSD1306_WHITE);
+    display.setCursor(20, 25);
+    display.println( (p_tm->tm_hour<10?"0":"")+String(p_tm->tm_hour) + (p_tm->tm_sec % 2 == 0 ? ":":" " ) + (p_tm->tm_min<10?"0":"")+String(p_tm->tm_min) );
+    
+    display.setTextSize(1);
+
+  } else {
+    int r = 36;
+    // Now draw the clock face
+
+    display.drawCircle(display.width() / 2, display.height() / 2, 2, WHITE);
+    //
+    //hour ticks
+    for (int z = 0; z < 360; z = z + 30)
+    {
+      //Begin at 0° and stop at 360°
+      float angle = z;
+
+      angle = (angle / 57.29577951); //Convert degrees to radians
+      int x2 = (64 + (sin(angle) * r));
+      int y2 = (32 - (cos(angle) * r));
+      int x3 = (64 + (sin(angle) * (r - 5)));
+      int y3 = (32 - (cos(angle) * (r - 5)));
+      display.drawLine(x2, y2, x3, y3, WHITE);
+    }
+    // display second hand
+    float angle = p_tm->tm_sec * 6;
+    angle = (angle / 57.29577951); //Convert degrees to radians
+    int x3 = (64 + (sin(angle) * (r)));
+    int y3 = (32 - (cos(angle) * (r)));
+    display.drawLine(64, 32, x3, y3, WHITE);
+    //
+    // display minute hand
+    angle = p_tm->tm_min * 6;
+    angle = (angle / 57.29577951); //Convert degrees to radians
+    x3 = (64 + (sin(angle) * (r - 3)));
+    y3 = (32 - (cos(angle) * (r - 3)));
+    display.drawLine(64, 32, x3, y3, WHITE);
+    //
+    // display hour hand
+    angle = p_tm->tm_hour * 30 + int((p_tm->tm_min / 12) * 6);
+    angle = (angle / 57.29577951); //Convert degrees to radians
+    x3 = (64 + (sin(angle) * (r - 11)));
+    y3 = (32 - (cos(angle) * (r - 11)));
+    display.drawLine(64, 32, x3, y3, WHITE);
+
+    display.setTextSize(1);
+    display.setCursor((display.width() / 2) + 10, (display.height() / 2) - 5);
+    display.print(p_tm->tm_mday);
+
+    display.setTextSize(1);
+    display.setCursor((display.width() / 2) + 10, (display.height() / 2) + 2);
+    display.print(p_tm->tm_mon + 1);
+    
+
+    if (toSetTime > 0)
+    {
+      display.setTextSize(1);
+      display.setCursor(0, 56);
+      display.print(p_tm->tm_year + 1900);
+    }
+  }
+
+  display.setTextSize(1);
+  display.setCursor(0, 17);
+  if (toSetTime == 1)
+    display.print("Sec");
+  if (toSetTime == 2)
+    display.print("Min");
+  if (toSetTime == 3)
+    display.print("Hour");
+  if (toSetTime == 4)
+    display.print("Day");
+  if (toSetTime == 5)
+    display.print("Month");
+  if (toSetTime == 6)
+    display.print("Year");
+  if (toSetTime == 7)
+    display.print("Digi");
+
+  if (WiFi.status() == WL_CONNECTED)
+    display.drawBitmap(1, 1, epd_bitmap_wifi, 8, 8, 0);
+  if (enableAlarm)
+    display.drawBitmap(10, 1, epd_bitmap_sino, 8, 8, 0);
+
+  // update display with all data
+  display.display();
+}
+
+byte menu = 0;
+
+#define pinB 25
+#define pinA 26
+#define pinC 27
+
+byte lowestEncoder = 0;
+byte changeamntEncoder = 1;
+byte readingEncoder[10] = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+byte readingEncoderMax[10] = {8, 2, 3, 3, 1, 1, 3, 1, 1, 1};
+
+unsigned long currentTimeEncoder;
+unsigned long lastTimeEncoder;
+boolean encA;
+boolean encB;
+boolean lastA = false;
+
+void readEncoder(byte highestEncoder)
+{
+  currentTimeEncoder = millis();
+  if (currentTimeEncoder >= (lastTimeEncoder))
+  {
+    encA = digitalRead(pinA);
+    encB = digitalRead(pinB);
+    if ((!encA) && (lastA))
+    {
+      if (encB)
+      {
+        if (readingEncoder[menu] + changeamntEncoder <= highestEncoder)
+        {
+          readingEncoder[menu] = readingEncoder[menu] + changeamntEncoder;
+        }
+        else
+        {
+          readingEncoder[menu] = lowestEncoder;
+        }
+      }
+      else
+      {
+        if (readingEncoder[menu] - changeamntEncoder >= lowestEncoder)
+        {
+          readingEncoder[menu] = readingEncoder[menu] - changeamntEncoder;
+        }
+        else
+        {
+          readingEncoder[menu] = highestEncoder;
+        }
+      }
+    }
+    lastA = encA;
+    lastTimeEncoder = currentTimeEncoder;
+  }
+}
+
+void readEncoderSetTime(long changeValue)
+{
+  currentTimeEncoder = millis();
+    
+        struct tm *p_tm;
+        time_t nowZero = time(nullptr);
+        p_tm = localtime(&nowZero);
+
+        byte sec = p_tm->tm_sec;
+        byte min = p_tm->tm_min;
+        byte hou = p_tm->tm_hour;
+        byte day = p_tm->tm_mday;
+        byte mon = p_tm->tm_mon;
+        byte yea = p_tm->tm_year;
+
+  if (currentTimeEncoder >= (lastTimeEncoder) + 5)
+  {
+    encA = digitalRead(pinA);
+    encB = digitalRead(pinB);
+
+    if ((!encA) && (lastA))
+    {
+      if (encB)
+      {
+        if (changeValue == 1)
+        {
+          sec += 1;
+        }
+        else if (changeValue == 2)
+        {
+          min += 1;
+        }
+        else if (changeValue == 3)
+        {
+          hou += 1;
+        }
+        else if (changeValue == 4)
+        {
+         day += + 1;
+        }
+        else if (changeValue == 5)
+        {
+          mon += 1;
+        }
+        else if (changeValue == 6)
+        {
+          yea += 1;
+        }
+        else if (changeValue == 7)
+        {
+          isDigital = !isDigital;
+        }
+
+        // p_tm->tm_sec = sec;
+        // p_tm->tm_min = min;
+        // p_tm->tm_hour = hou;
+        // p_tm->tm_mday = day;
+        // p_tm->tm_mon = mon;
+        // p_tm->tm_year = yea;
+
+        // nowZero = mktime(p_tm);
+
+        // timeval tv;
+        // tv.tv_sec = nowZero;
+        // settimeofday(&tv, NULL);
+
+        // delay(100);
+
+      }
+      else
+      {
+        // struct tm *p_tm;
+        // time_t nowZero = time(nullptr);
+        // p_tm = localtime(&nowZero);
+
+        // byte sec = p_tm->tm_sec;
+        // byte min = p_tm->tm_min;
+        // byte hou = p_tm->tm_hour;
+        // byte day = p_tm->tm_mday;
+        // byte mon = p_tm->tm_mon;
+        // byte yea = p_tm->tm_year;
+        
+        if (changeValue == 1)
+        {
+          sec -= 1;
+        }
+        else if (changeValue == 2)
+        {
+          min -= 1;
+        }
+        else if (changeValue == 3)
+        {
+          hou -= 1;
+        }
+        else if (changeValue == 4)
+        {
+         day -= + 1;
+        }
+        else if (changeValue == 5)
+        {
+          mon -= 1;
+        }
+        else if (changeValue == 6)
+        {
+          yea -= 1;
+        }
+        else if (changeValue == 7)
+        {
+          isDigital = !isDigital;
+        }
+      }
+    }
+        p_tm->tm_sec = sec;
+        p_tm->tm_min = min;
+        p_tm->tm_hour = hou;
+        p_tm->tm_mday = day;
+        p_tm->tm_mon = mon;
+        p_tm->tm_year = yea;
+
+        delay(500);
+
+        nowZero = mktime(p_tm);
+        Serial.println(nowZero);
+
+        timeval tv;
+        tv.tv_sec = nowZero;
+        settimeofday(&tv, NULL);
+
+    lastA = encA;
+    lastTimeEncoder = currentTimeEncoder;
+  }
+}
+
+void readEncoderSetAlarm(long changeValue)
+{
+  currentTimeEncoder = millis();
+  if (currentTimeEncoder >= (lastTimeEncoder) + 5)
+  {
+    encA = digitalRead(pinA);
+    encB = digitalRead(pinB);
+
+    if ((!encA) && (lastA))
+    {
+      if (encB)
+      {
+        struct tm *p_tm;
+        time_t nowZero = time(nullptr);
+        p_tm = localtime(&nowZero);
+        
+        if (changeValue == 1)
+        {
+          if (alarmMin < 60) alarmMin += 1;
+          else alarmMin = 0;
+        }
+        else if (changeValue == 2)
+        {
+          if (alarmHour < 24) alarmHour += 1;
+          else alarmHour = 0;
+        }
+        
+        delay(100);
+      }
+      else
+      {
+        struct tm *p_tm;
+        time_t nowZero = time(nullptr);
+        p_tm = localtime(&nowZero);
+        
+        if (changeValue == 1)
+        {
+          if (alarmMin > 0) alarmMin -= 1;
+          else alarmMin = 59;
+        }
+        else if (changeValue == 2)
+        {
+          if (alarmHour > 0) alarmHour -= 1;
+          else alarmHour = 23;
+        }
+        
+        delay(100);
+      }
+    }
+
+    lastA = encA;
+    lastTimeEncoder = currentTimeEncoder;
+  }
+}
+
+String httpGETRequest(const char *serverName)
+{
+  WiFiClient client;
+  HTTPClient http;
+
+  // Your Domain name with URL path or IP address with path
+  http.begin(client, serverName);
+
+  // Send HTTP POST request
+  int httpResponseCode = http.GET();
+
+  String payload = "{}";
+
+  if (httpResponseCode > 0)
+  {
+    Serial.print("HTTP Response code: ");
+    Serial.println(httpResponseCode);
+    payload = http.getString();
+  }
+  else
+  {
+    Serial.print("Error code: ");
+    Serial.println(httpResponseCode);
+  }
+  // Free resources
   http.end();
 
   return payload;
 }
 
-///////////////////////////////////////////GET WEATHER
-void getWeather(){
-      printText("true", 1, 0, 0, "false", F("       Weather       "));
-      payloadWeather = payloadWeather.length()>0?payloadWeather: httpGETRequest(endpoint.c_str());
-      myWeather = JSON.parse(payloadWeather);
-  
-      if (JSON.typeof(myWeather) == "undefined") {
-        showIcons(F("Error to get weather"), 19); 
-        return;
-      }
-      
-      const char* description = myWeather["weather"][0]["description"];
-      double gettemp = myWeather["main"]["temp"];
-      int iconTemp = myWeather["weather"][0]["id"];
-      display.setTextColor(SSD1306_WHITE);
-      //display.clearDisplay();
-      display.cp437(true);
+void getWeather()
+{
+  String endpoint = "http://api.openweathermap.org/data/2.5/weather?id=" + weatherId + "&units=metric&APPID=f1f3dfaf4301e0686904b2057957ddc9";
 
-      if(iconTemp==800){
-        display.setCursor(0, 8);
-        display.print(F("         \\__/"));
-        display.setCursor(0, 16);
-        display.print(F("        _/  \\_"));
-        display.setCursor(0, 24);
-        display.print(F("         \\__/"));
-        display.setCursor(0, 32);
-        display.print(F("         /  \\"));
-      }else{
-        switch(iconTemp/100){
-          case 2://Thunderstorm
-            display.setCursor(0, 8);
-            display.print(F("         ._."));
-            display.setCursor(0, 16);
-            display.print(F("        (   )."));
-            display.setCursor(0, 24);
-            display.print(F("       (___(__)"));
-            display.setCursor(0, 32);
-            display.print(F("       ,'//,'\\"));
-            display.setCursor(0, 40);
-            display.print(F("       ,\\/,'',\\/"));
-            break;
-          case 3://Drizzle
-          case 5://Rain
-            display.setCursor(0, 8);
-            display.print(F("         ._."));
-            display.setCursor(0, 16);
-            display.print(F("        (   )."));
-            display.setCursor(0, 24);
-            display.print(F("       (___(__)"));
-            display.setCursor(0, 32);
-            display.print(F("       ' ' ' ' '"));
-            display.setCursor(0, 40);
-            display.print(F("        ' ' ' '"));
-            break;
-          case 6://Snow
-            display.setCursor(0, 8);
-            display.print(F("         ._."));
-            display.setCursor(0, 16);
-            display.print(F("        (   )."));
-            display.setCursor(0, 24);
-            display.print(F("       (___(__)"));
-            display.setCursor(0, 32);
-            display.print(F("       * * * * *"));
-            display.setCursor(0, 40);
-            display.print(F("        * * * *"));
-            break;
-          case 7://Sun w Clouds
-            display.setCursor(0, 8);
-            display.print(F("      _`/''._."));
-            display.setCursor(0, 16);
-            display.print(F("       '\\_(   )."));
-            display.setCursor(0, 24);
-            display.print(F("        /(___(__)"));
-            break;
-          case 8://Clouds
-            display.setCursor(0, 8);
-            display.print(F("         ._."));
-            display.setCursor(0, 16);
-            display.print(F("        (   )."));
-            display.setCursor(0, 24);
-            display.print(F("       (___(__)"));
-            break;
-          default://Sun w Clouds
-            display.setCursor(0, 8);
-            display.print(F("      _`/''._."));
-            display.setCursor(0, 16);
-            display.print(F("       '\\_(   )."));
-            display.setCursor(0, 24);
-            display.print(F("        /(___(__)"));
-            break;
-        }
-      }
-      
-      display.setTextSize(1);
-      display.setTextColor(SSD1306_WHITE);
-
-      display.setCursor(0, 48);
-      display.println(description);
-      
-      display.setCursor(0, 56);
-      display.print(F("Current temp "));
-      display.print(gettemp);
-      display.write(248);
-      display.print(F("C "));
-
-      display.display();
+  DeserializationError error = deserializeJson(weather, httpGETRequest(endpoint.c_str()));
+  if (error)
+    printText(F("Failed to read file, using default configuration"), 0, 0, 1, 3000, 0);
+  String opcoesMenu[8] = {F("<Weather"), weather["weather"]["description"], F("<Min"), weather["main"]["temp_min"], F("<Max"), weather["main"]["temp_max"], F("<Humidity"), weather["main"]["humidity"]};
+  printTextArray(opcoesMenu);
 }
 
+void pinsSetup()
+{
 
-///////////////////////////////////////////TIME
-void setGMT(){
-  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
-  while(!time(nullptr)){
-    showIcons(F("Updating"), 225);
-    delay(500);
-  }
-}
-    
-void printLocalTime() {
-  display.clearDisplay();
-  time_t now = time(nullptr);
-  struct tm* p_tm = localtime(&now);
-  int r = 36;
-  // Now draw the clock face
-   
-  display.drawCircle(display.width()/2, display.height()/2, 2, WHITE);
-  //
-  //hour ticks
-  for( int z=0; z < 360;z= z + 30 ){
-      //Begin at 0° and stop at 360°
-      float angle = z ;
-       
-      angle=(angle/57.29577951) ; //Convert degrees to radians
-      int x2=(64+(sin(angle)*r));
-      int y2=(32-(cos(angle)*r));
-      int x3=(64+(sin(angle)*(r-5)));
-      int y3=(32-(cos(angle)*(r-5)));
-      display.drawLine(x2,y2,x3,y3,WHITE);
-  }
-  // display second hand
-  float angle = p_tm->tm_sec*6 ;
-  angle=(angle/57.29577951) ; //Convert degrees to radians
-  int x3=(64+(sin(angle)*(r)));
-  int y3=(32-(cos(angle)*(r)));
-  display.drawLine(64,32,x3,y3,WHITE);
-  //
-  // display minute hand
-  angle = p_tm->tm_min * 6 ;
-  angle=(angle/57.29577951) ; //Convert degrees to radians
-  x3=(64+(sin(angle)*(r-3)));
-  y3=(32-(cos(angle)*(r-3)));
-  display.drawLine(64,32,x3,y3,WHITE);
-  //
-  // display hour hand
-  angle = p_tm->tm_hour * 30 + int((p_tm->tm_min / 12) * 6 );
-  angle=(angle/57.29577951) ; //Convert degrees to radians
-  x3=(64+(sin(angle)*(r-11)));
-  y3=(32-(cos(angle)*(r-11)));
-  display.drawLine(64,32,x3,y3,WHITE);
-   
-  display.setTextSize(1);
-  display.setCursor((display.width()/2)+10,(display.height()/2) - 3);
-  display.print(p_tm->tm_mday);
-   
-  // update display with all data
-  display.display();
-}
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////GET GIT
-void getUpdateGit(){
-  showIcons(F("Updating..."), 225);
-  String getGitHtml = "https://raw.githubusercontent.com/gabrielchristino/chronuswatch/main/data/config.json";
-  payloadConfigJson = httpGETRequest(getGitHtml.c_str());
-  JSONVar myGit = JSON.parse(payloadConfigJson);
-  
-  if (JSON.typeof(myGit) == "undefined") {
-    showIcons(F("Error to get git"), 19); 
-    return;
-  }
-
-  int getVersion = myGit["version"];
-
-  if(getLocalVersion!=getVersion){
-    configFile = SPIFFS.open("/config.json",FILE_WRITE);
-    configFile.print(payloadConfigJson);
-    configFile.close();
-    showIcons(F("Update Success!"), 225);
-    ESP.restart();
-  }else{
-    showIcons(F("There's no new update"), 225);
-    
-    if(waitATime(1500)){
-      reading=8;
-    }
-    
-  }
-  
-///////////////////////////////////////////////////////////////////////////////////////////////////////////
-}
-
-void showWatchFace(String from){
-  for(int16_t i=0; i<configObj[from]["face"].length(); i+=1) {
-    JSONVar face = configObj[from]["face"][i];  
-    int type = face["type"];
-     
-//    if(type == 0){
-//      JSONVar src = face["s"];
-//      int arraysize = face["s"].length();
-//      int y = face["y"];
-//      int w = face["w"];
-//      int x = face["x"];
-//      int h = face["h"];
-//
-//      for(int x=0;x<arraysize;x+=1){
-//        for(int wA=x; wA<x+w; wA+=1){
-//          for(int hA=y; hA<y+h; hA+=1){
-//            int n = src[x];
-//            display.drawPixel(wA, hA, n);
-//          }
-//        }
-//      }
-//    }
-    if(type == 0){
-      int y = face["y"];
-      int x = face["x"];
-      int s = face["s"];
-      const char* i = face["i"];
-      const char* c = face["c"];
-      const char* text = face["t"];
-      printText(c, s, x ,y, i, text);
-    }
-    if(type >= 1 && type <= 7){
-      int y = face["y"];
-      int x = face["x"];
-      int s = face["s"];
-      const char* i = face["i"];
-      const char* c = face["c"];
-
-      time_t now = time(nullptr);
-      struct tm* p_tm = localtime(&now);
-
-      int tm = 0;
-      switch(type){
-        case 1:
-          tm = p_tm->tm_sec;
-          break;
-        case 2:
-          tm = p_tm->tm_min;
-          break;
-        case 3:
-          tm = p_tm->tm_hour;
-          break;
-        case 4:
-          tm = p_tm->tm_mday;
-          break;
-        case 5:
-          tm = p_tm->tm_wday;
-          break;
-        case 6:
-          tm = (p_tm->tm_mon)+1;
-          break;
-        case 7:
-          tm = p_tm->tm_year;
-          break;
-        default:
-          tm = 0;
-          break;
-      }
-      printText(c, s, x ,y, i, String(tm));
-    }
-    if(type == 8){
-      int y = face["y"];
-      int x = face["x"];
-      int w = face["w"];
-      int h = face["h"];
-      int r = face["r"];
-      int color = face["color"];
-      bool fill = face["fill"];
-      if(!fill){
-        display.drawRoundRect(x, y, w, h, 1, SSD1306_WHITE);
-      } else {
-        display.fillRoundRect(x, y, w, h, 1, SSD1306_WHITE);
-      }
-      
-      display.display();
-    }
-    if(type == 10){
-      int y = face["y"];
-      int x = face["x"];
-      int param1 = face["param1"];
-      int param2 = face["param2"];
-
-      const char* param = myWeather[param1][param2];
-      
-      const char* i = face["i"];
-      const char* c = face["c"];
-      const char* text = face["t"];
-    }
-
-  }
-}
-///////////////////////////////////////////BLUETOOTH
-class MyCallbacks: public BLECharacteristicCallbacks {
-    void onWrite(BLECharacteristic *pCharacteristic) {
-      std::string value = pCharacteristic->getValue();
-
-      if (value.length() > 0) {
-        valor = "";
-        for (int i = 0; i < value.length(); i++){
-          valor = valor + value[i];
-        }
-        notify = true;
-        /*printText("true", 1, 0, 0, "false", "   New notification  ");
-        /display.setTextSize(1);
-        display.setCursor(0, 0);
-        for (int i = 0; i < value.length(); i++){
-          display.print(value[i]);
-        }
-       
-        //printText("false", 1, 0, 0, "true", valor);
-        display.display();
-        delay(3000);*/
-      }
-    }
-};
-
-
-void configBLE() {
-  showIcons(F("Wait for BLE"), 225); 
-
-  BLEDevice::init("PuntlyChronus");
-  BLEServer *pServer = BLEDevice::createServer();
-  BLEService *pService = pServer->createService(SERVICE_UUID);
-  BLECharacteristic *pCharacteristic = pService->createCharacteristic(
-                                         CHARACTERISTIC_UUID,
-                                         BLECharacteristic::PROPERTY_READ |
-                                         BLECharacteristic::PROPERTY_WRITE
-                                       );
-
-  pCharacteristic->setCallbacks(new MyCallbacks());
-  pCharacteristic->setValue("Hello Puntly Chronus");
-  pService->start();
-
-  BLEAdvertising *pAdvertising = pServer->getAdvertising();
-  pAdvertising->start();
-}
-
-
-void setup() {
-  Serial.begin(115200);
   pinMode(pinA, INPUT_PULLUP);
   pinMode(pinB, INPUT_PULLUP);
-  currentTime = millis();
-  lastTime = currentTime; 
+  //  pinMode(pinC, INPUT_PULLDOWN);
+
   touchAttachInterrupt(T7, callback, Threshold);
   esp_sleep_enable_touchpad_wakeup();
-///////////////////////////////////////////DISPLAY
-  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-    for(;;);
-  }
-  display.display();
-  display.clearDisplay();
-
-///////////////////////////////////////////SPIFFS
-  if(!SPIFFS.begin(FORMAT_SPIFFS_IF_FAILED)){
-    showIcons(F("SPIFFS error"), 19); 
-    delay(500);
-  }
-  
-  configFile = SPIFFS.open("/config.json",FILE_READ);
-  String line = configFile.readStringUntil('\n');
-  
-  configObj = JSON.parse(line);
-  configFile.close();
-
-  getLocalVersion = configObj["version"];
-
-  gmtOffset_sec = configObj["configuration"]["gmt"];
-  gmtOffset_sec = gmtOffset_sec*3600;
-  
-  bool invertD = configObj["configuration"]["invertDisplay"];
-  invertColor(invertD);
-
-  int weatherId = configObj["configuration"]["weatherId"];
-  endpoint = "http://api.openweathermap.org/data/2.5/weather?id=" + String(weatherId) + "&units=metric&APPID=f1f3dfaf4301e0686904b2057957ddc9";
-  
-  configBLE();
-///////////////////////////////////////////WIFI
-  JSONVar wifiConfig = configObj["wifi"];
-  bool conectado = false;
-  for(int16_t i=0; i<wifiConfig.length(); i+=1) {
-    ssid = configObj["wifi"][i]["ssid"];
-    password = configObj["wifi"][i]["password"];
-  
-    WiFi.begin(ssid , password);
-    showIcons(F("WiFi"), 225);
-    int tentativas = 0;
-
-    while (WiFi.status() != WL_CONNECTED && tentativas < 10) {
-      showIcons(ssid , 225);
-      delay(500);
-      tentativas++;
-    }
-    if(WiFi.status() == WL_CONNECTED){conectado=true;break;}
-  }
-
-  if(!conectado){
-///////////////////////////////////////////AP IF CAN'T CONNECT TO WIFI
-    WiFi.softAP("Puntly","12345678",1,13);
-    printText("true", 1, 0 ,0, "true", F("Can't connect to WiFi"));
-    delay(5000);
-  }else{
-///////////////////////////////////////////IF CONNECTED TO WIFI
-    if (!MDNS.begin(host)) {
-      showIcons(F("MDNS error"), 19);
-      
-      while (1) {
-        delay(500);
-      }
-    }
-    
-    setGMT();
-  }
-///////////////////////////////////////////UPDATE ROUTINE
-  server.on("/", HTTP_GET, []() {
-    server.sendHeader("Connection", "close");
-    server.send(200, "text/html", serverIndex);
-  });
-  /*handling uploading firmware file 
-  server.on("/update", HTTP_POST, []() {
-    server.sendHeader("Connection", "close");
-    server.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
-    ESP.restart();
-  }, []() {
-    HTTPUpload& upload = server.upload();
-    if (upload.status == UPLOAD_FILE_START) {
-      showIcons(F("Updating..."), 225);
-      
-      if (!Update.begin(UPDATE_SIZE_UNKNOWN)) { //start with max available size
-        Update.printError(Serial);
-      }
-    } else if (upload.status == UPLOAD_FILE_WRITE) {
-      // flashing firmware to ESP
-      if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
-        Update.printError(Serial);
-      }
-    } else if (upload.status == UPLOAD_FILE_END) {
-      if (Update.end(true)) {
-        showIcons(F("Update Success!"), 225);
-      } else {
-        Update.printError(Serial);
-      }
-    }
-  });*/
-
-
-
-///////////////////////////////////////////GET NOTIFICATION
-  server.on("/sendNofication", HTTP_POST, []() {
-    server.sendHeader("Connection", "close");
-
-    String postClear = server.arg("limparTexto");
-    String postColor = server.arg("corTexto");
-    String postText = server.arg("texto");
-    String postSize = server.arg("tamanho");
-    String postX = server.arg("x");
-    String postY = server.arg("y");
-
-    printText(postClear, postSize.toInt(), postX.toInt(), postY.toInt(), postColor, postText);
-    
-    server.send(200, "text/plain", "notification ok");
-
-  }, []() {
-    HTTPUpload& upload = server.upload();
-  });
-///////////////////////////////////////////GET NOTIFICATION
-  server.on("/getjson", HTTP_POST, []() {
-    server.sendHeader("Connection", "close");
-    showIcons(F("Updating..."), 225);
-
-    payloadConfigJson = server.arg("jsontext");
-
-    JSONVar myGit = JSON.parse(payloadConfigJson);
-  
-    if (JSON.typeof(myGit) == "undefined") {
-      showIcons(F("Error to get git"), 19); 
-      return;
-    }
-
-    configFile = SPIFFS.open("/config.json",FILE_WRITE);
-    configFile.print(payloadConfigJson);
-    configFile.close();
-    showIcons(F("Update Success!"), 225);
-    ESP.restart();
-    
-    server.send(200, "text/plain", "updated");
-
-  }, []() {
-    HTTPUpload& upload = server.upload();
-  });
-  AsyncElegantOTA.begin(&server);
-  server.begin();
-  delay(100);
-  display.clearDisplay();
-  display.display();
-  
 }
 
+//void serverSetup() {
+//  server.on("/info", HTTP_GET, [](AsyncWebServerRequest * request) {
+//    request->send(200, "text/plain", "Hi! I am Puntly Chronus.");
+//    printText("hello from server!", 4, 24, 1, 3000, 2);
+//  });
+//
+//  server.serveStatic("/", SPIFFS, "/");
+////  AsyncElegantOTA.begin(&server);    // Start ElegantOTA
+//  server.begin();
+//}
 
-void firstMenu(int numero){
-  readLevel[level] = numero;
-  
-      if(reading==0){
-        showIcons(F("Sleep"), 31);
-      } else if(numero==1){
-        showIcons(F("Time"), 28);
-        showMenuDots();
-      } else if(numero==2){
-        showIcons(F("Weather"), 15);
-        showMenuDots();
-      } else if(numero==3){
-        showIcons(F("Networks"), 240);
-        showMenuDots();
-      } else if(numero==4){
-        const char* p1name = configObj["p1"]["name"];
-        int p1icon = configObj["p1"]["icon"];
-        showIcons(p1name, p1icon);
-        showMenuDots();
-      } else if(numero==5){
-        const char* p2name = configObj["p2"]["name"];
-        int p2icon = configObj["p2"]["icon"];
-        showIcons(p2name, p2icon);
-        showMenuDots();
-      } else if(numero==6){
-        const char* p3name = configObj["p3"]["name"];
-        int p3icon = configObj["p3"]["icon"];
-        showIcons(p3name, p3icon);
-        showMenuDots();
-      } else if(numero==7){
-        showIcons(F("Update"), 225);
-        showMenuDots();
-      } else if(numero==8){
-        showIcons(F("About"), 2);
-        showMenuDots();
-      } else {
-        showIcons(F(""), 6);
-      }
+void otaConfigure(void)
+{
+  // Port defaults to 3232
+  // ArduinoOTA.setPort(3232);
+
+  // Hostname defaults to esp3232-[MAC]
+  ArduinoOTA.setHostname("ChronusWatch");
+
+  // No authentication by default
+  // ArduinoOTA.setPassword("admin");
+
+  // Password can be set with it's md5 value as well
+  // MD5(admin) = 21232f297a57a5a743894a0e4a801fc3
+  // ArduinoOTA.setPasswordHash("21232f297a57a5a743894a0e4a801fc3");
+
+  ArduinoOTA
+      .onStart([]()
+               {
+                 String type;
+                 if (ArduinoOTA.getCommand() == U_FLASH)
+                   type = "sketch";
+                 else // U_SPIFFS
+                   type = "filesystem";
+               })
+      .onEnd([]()
+             { printText("Updated!", 30, 24, 1, 500, 2); })
+      .onProgress([](unsigned int progress, unsigned int total)
+                  {
+                    display.clearDisplay();
+                    // printText(String(progress / (total / 100)) + "%", 30, 24, 1, 1, 2, false);
+
+                    display.setTextSize(1);
+
+                    display.setCursor(31, 15);
+                    display.println("Updating...");
+
+                    display.drawRect(14, 25, 100, 10, SSD1306_WHITE);
+                    display.fillRect(14, 25, progress / (total / 100), 10, SSD1306_WHITE);
+
+                    const int newX = 64 - ((String(String(progress / (total / 100)) + "%").length() * 6) / 2);
+                    display.setCursor(newX, 40);
+                    display.println(String(progress / (total / 100)) + "%");
+
+                    display.display();
+                  })
+      .onError([](ota_error_t error)
+               {
+                 if (error == OTA_AUTH_ERROR)
+                   printText("Auth Failed", 30, 24, 1, 3000, 2);
+                 else if (error == OTA_BEGIN_ERROR)
+                   printText("Begin Failed", 30, 24, 1, 3000, 2);
+                 else if (error == OTA_CONNECT_ERROR)
+                   printText("Connect Failed", 30, 24, 1, 3000, 2);
+                 else if (error == OTA_RECEIVE_ERROR)
+                   printText("Receive Failed", 30, 24, 1, 3000, 2);
+                 else if (error == OTA_END_ERROR)
+                   printText("End Failed", 30, 24, 1, 3000, 2);
+               });
+
+  ArduinoOTA.begin();
 }
 
-void firstMenuSelect(int numero){
-  readLevel[level] = numero;
+void saveLastTime()
+{
+  time_t now = time(nullptr);
+  struct tm *p_tm;
+  p_tm = localtime(&now);
 
-  if(numero==0){
-      printText("true", 1, 0, 16, "true", "");
-      esp_deep_sleep_start();
-    }else if(numero==1){
-      if(configObj["face"]["analog"]){
-        printLocalTime();
-      }else{
-        showWatchFace(F("face"));
-      }
-    } else if(numero==2){
-      getWeather();
-    } else if(numero==3){
-      printNetwork();
-    } else if(numero==4){
-        /*String texto = typeText();
-        showIcons(texto, 6);
-        if(waitATime(4000)){
-          reading=8;
-        }*/
-      showWatchFace(F("p1"));
-    } else if(numero==5){
-      showWatchFace(F("p2"));
-    } else if(numero==6){
-      showWatchFace(F("p3"));
-    } else if(numero==7){
-      getUpdateGit();
-    } else if(numero==8){
-      showIcons("Puntly Chronus v."+ String(getLocalVersion), 225);
-    } else {
-      printText("true", 1, 0, 16, "true", "");
+  lastSavedTime = time(nullptr);
+
+  saveSPIFFS("lastSavedTime.txt", String(lastSavedTime));
+}
+
+void setup(void)
+{
+  Serial.begin(115200);
+
+  initDisplay();
+  initSPIFFS();
+  generalConfig();
+  //  configBLE();
+  initWiFi();
+  setGMT();
+  pinsSetup();
+  //  serverSetup();
+  //  getWeather();
+  otaConfigure();
+
+  printText("Welcome!", 30, 24, 1, 3000, 2);
+}
+//void bleShow(){
+//  std::string value = pCharacteristic->getValue();
+//  if(value != "") {
+//    // Serial.println(value.c_str());
+//    if(value[0] == '#'){
+//        // Serial.println(String(value.c_str()));
+//      if(String(value.c_str()).indexOf("t") > 0){
+//        for(int i = 2; i< value.length(); i++){
+//          timeBLE += value[i];
+//        }
+//        // Serial.println(timeBLE);
+//        noTime = true;
+//      }
+//    } else {
+//      printText(value.c_str(), 0, 0, 1, 3000, 0);
+//      pCharacteristic->setValue("");
+//    }
+//    pCharacteristic->setValue("");
+//    value = "";
+//  }
+//}
+
+void toReadEncoder()
+{
+  if (toSetTime == 0 && configAlarm == 0)
+  {
+    readEncoder(readingEncoderMax[menu]);
+  }
+  else if(toSetTime != 0 && configAlarm == 0)
+  {
+    readEncoderSetTime(toSetTime);
+    saveLastTime();
+  }
+  else if(toSetTime == 0 && configAlarm != 0)
+  {
+    readEncoderSetAlarm(configAlarm);
+  }
+}
+
+void toMenu(byte de, byte para)
+{
+  readingEncoder[de] = 0;
+  menu = para;
+  delay(500);
+}
+
+void menu0()
+{
+  if (menu == 0)
+  {
+    if (readingEncoder[menu] == 0)
+    {
+      display.clearDisplay();
+      display.display();
     }
-}
-
-void loop(void) {
-  server.handleClient();
-  delay(1);
-
-  // Read elapsed time
-  currentTime = millis();
-  // Check if it's time to read
-  if(currentTime >= (lastTime + 5)) {
-    // read the two pins
-    encA = digitalRead(pinA);
-    encB = digitalRead(pinB);
-
-    // check if A has gone from high to low
-    if ((!encA) && (lastA)) {
-      // check if B is high
-      if (encB) {
-        // clockwise
-        if (reading + changeamnt <= highest) {
-          reading = reading + changeamnt; 
-        } else {
-          reading = lowest;
-        }
+    if (readingEncoder[menu] == 1)
+    {
+      printLocalTime();
+      if (touchRead(pinC) == 0)
+      {
+        saveLastTime();
+        esp_light_sleep_start();
+        toMenu(menu, 0);
+        toMenu(0, 0);
+      }
+    }
+    if (readingEncoder[menu] == 2)
+    {
+      String opcoesMenu[8] = {F("  Home"), F("> Config WiFi"), F("  Power"), F("  Set Date & time"), F("  Calendar"), F("  Weather"), F("  Alarm"), F("")};
+      printTextArray(opcoesMenu);
+      if (touchRead(pinC) == 0)
+      {
+        toMenu(1, 1);
+      }
+    }
+    if (readingEncoder[menu] == 3)
+    {
+      String opcoesMenu[8] = {F("  Home"), F("  Config WiFi"), F("> Power"), F("  Set Date & time"), F("  Calendar"), F("  Weather"), F("  Alarm"), F("")};
+      printTextArray(opcoesMenu);
+      if (touchRead(pinC) == 0)
+      {
+        toMenu(2, 2);
+      }
+    }
+    if (readingEncoder[menu] == 4)
+    {
+      if (toSetTime == 0)
+      {
+        String opcoesMenu[8] = {F("  Home"), F("  Config WiFi"), F("  Power"), F("> Set Date & time"), F("  Calendar"), F("  Weather"), F("  Alarm"), F("")};
+        printTextArray(opcoesMenu);
       }
       else
       {
-        // anti-clockwise
-        if (reading - changeamnt >= lowest) {
-          reading = reading - changeamnt; 
-        } else {
-          reading = highest;
+        printLocalTime();
+      }
+
+      if (touchRead(pinC) == 0)
+      {
+        if (toSetTime >= 0 && toSetTime < 8)
+        {
+          toSetTime += 1;
+          delay(500);
+        }
+        if (toSetTime >= 8)
+        {
+          toSetTime = 0;
+          delay(500);
+          saveSPIFFS("isDigital.txt", isDigital ? "true" : "false" );
         }
       }
-      switch(level){
-        case 0:
-          firstMenu(reading);
-          break;
-        case 1:
-          firstMenu(reading);
-          break;
-        default:
-          break;
-      }
-      
-      
-      lastTime2 = currentTime;
     }
-    // store reading of A and millis for next loop
-    lastA = encA;
-    lastTime = currentTime;
-
-  }
-  if(currentTime >= (lastTime2 + 2000)) {
-
-      switch(level){
-        case 0:
-          firstMenuSelect(reading);
-          break;
-        default:
-          break;
+    if (readingEncoder[menu] == 5)
+    {
+      String opcoesMenu[8] = {F("  Home"), F("  Config WiFi"), F("  Power"), F("  Set Date & time"), F("> Calendar"), F("  Weather"), F("  Alarm"), F("")};
+      printTextArray(opcoesMenu);
+      if (touchRead(pinC) == 0)
+      {
+        toMenu(4, 4);
       }
-    
-    lastTime2 = currentTime;
+    }
+    if (readingEncoder[menu] == 6)
+    {
+      String opcoesMenu[8] = {F("  Home"), F("  Config WiFi"), F("  Power"), F("  Set Date & time"), F("  Calendar"), F("> Weather"), F("  Alarm"), F("")};
+      printTextArray(opcoesMenu);
+      if (touchRead(pinC) == 0)
+      {
+        toMenu(5, 5);
+      }
+    }
+    if (readingEncoder[menu] == 7)
+    {
+      String opcoesMenu[8] = {F("  Home"), F("  Config WiFi"), F("  Power"), F("  Set Date & time"), F("  Calendar"), F("  Weather"), F("> Alarm"), F("")};
+      printTextArray(opcoesMenu);
+      if (touchRead(pinC) == 0)
+      {
+        toMenu(6, 6);
+      }
+    }
+    if (readingEncoder[menu] == 8)
+    {
+      String opcoesMenu[8] = {F("  Home"), F("  Config WiFi"), F("  Power"), F("  Set Date & time"), F("  Calendar"), F("  Weather"), F("  Alarm"), F(">")};
+      printTextArray(opcoesMenu);
+      if (touchRead(pinC) == 0)
+      {
+        delay(500);
+      }
+    }
   }
+}
 
-  if(valor != "" && notify){
-    printText("true", 1, 0, 0, "true", valor);
-    configObj["p2"]["face"][1]["t"] = valor;
-    notify = false;
-    Serial.println(configObj);
+void menu1()
+{
+  if (menu == 1)
+  {
+    if (readingEncoder[menu] == 0)
+    {
+      String opcoesMenu[8] = {F("<Config WiFi"), F("> Back"), F("  Set WiFi off"), F("  Set WiFi on"), F(""), F(""), F(""), F("")};
+      printTextArray(opcoesMenu);
+      if (touchRead(pinC) == 0)
+      {
+        toMenu(menu, 0);
+      }
+    }
+    if (readingEncoder[menu] == 1)
+    {
+      String opcoesMenu[8] = {F("<Config WiFi"), F("  Back"), F("> Set WiFi off"), F("  Set WiFi on"), F(""), F(""), F(""), F("")};
+      printTextArray(opcoesMenu);
+      if (touchRead(pinC) == 0)
+      {
+        setWifiOff();
+        toMenu(menu, 0);
+      }
+    }
+    if (readingEncoder[menu] == 2)
+    {
+      String opcoesMenu[8] = {F("<Config WiFi"), F("  Back"), F("  Set WiFi off"), F("> Set WiFi on"), F(""), F(""), F(""), F("")};
+      printTextArray(opcoesMenu);
+      if (touchRead(pinC) == 0)
+      {
+        initWiFi();
+        toMenu(menu, 0);
+      }
+    }
   }
+}
+
+void menu2()
+{
+  if (menu == 2)
+  {
+    if (readingEncoder[menu] == 0)
+    {
+      String opcoesMenu[8] = {F("<Power"), F("> Back"), F("  Turn off"), F("  Low power mode"), F("  Restart"), F(""), F(""), F("")};
+      printTextArray(opcoesMenu);
+      if (touchRead(pinC) == 0)
+      {
+        readingEncoder[menu] = 0;
+        toMenu(menu, 0);
+      }
+    }
+    if (readingEncoder[menu] == 1)
+    {
+      String opcoesMenu[8] = {F("<Power"), F("  Back"), F("> Turn off"), F("  Low power mode"), F("  Restart"), F(""), F(""), F("")};
+      printTextArray(opcoesMenu);
+      if (touchRead(pinC) == 0)
+      {
+        saveLastTime();
+        printText(F("Bye!"), 0, 30, 1, 2000, 2);
+        delay(1000);
+        display.clearDisplay();
+        display.display();
+        esp_deep_sleep_start();
+      }
+    }
+    if (readingEncoder[menu] == 2)
+    {
+      String opcoesMenu[8] = {F("<Power"), F("  Back"), F("  Turn off"), F("> Low power mode"), F("  Restart"), F(""), F(""), F("")};
+      printTextArray(opcoesMenu);
+      if (touchRead(pinC) == 0)
+      {
+        saveLastTime();
+        setWifiOff();
+        esp_light_sleep_start();
+        toMenu(menu, 0);
+        toMenu(0, 0);
+      }
+    }
+    if (readingEncoder[menu] == 3)
+    {
+      String opcoesMenu[8] = {F("<Power"), F("  Back"), F("  Turn off"), F("  Low power mode"), F("> Restart"), F(""), F(""), F("")};
+      printTextArray(opcoesMenu);
+      if (touchRead(pinC) == 0)
+      {
+        saveLastTime();
+        printText(F("Please, wait..."), 0, 30, 1, 2000, 2);
+        ESP.restart();
+        toMenu(menu, 0);
+      }
+    }
+  }
+}
+
+void menu3()
+{
+  if (menu == 3)
+  {
+    if (readingEncoder[menu] == 0)
+    {
+      String opcoesMenu[8] = {F("<Set Date & time"), F("> Back"), F("  Fix Date & Time"), F("  Set min date Oct 2"), F("  Refresh date & time"), F(""), F(""), F("")};
+      printTextArray(opcoesMenu);
+      if (touchRead(pinC) == 0)
+      {
+        toMenu(menu, 0);
+      }
+    }
+    if (readingEncoder[menu] == 1)
+    {
+      String opcoesMenu[8] = {F("<Set Date & time"), F("  Back"), F("> Fix Date & Time"), F("  Set min date Oct 2"), F("  Refresh date & time"), F(""), F(""), F("")};
+      printTextArray(opcoesMenu);
+      if (touchRead(pinC) == 0)
+      {
+        toMenu(menu, 0);
+      }
+    }
+    if (readingEncoder[menu] == 2)
+    {
+      String opcoesMenu[8] = {F("<Set Date & time"), F("  Back"), F("  Fix Date & Time"), F("> Set min date Oct 2"), F("  Refresh date & time"), F(""), F(""), F("")};
+      printTextArray(opcoesMenu);
+      if (touchRead(pinC) == 0)
+      {
+        noTime = true;
+        setGMT();
+        saveLastTime();
+        toMenu(menu, 0);
+      }
+    }
+    if (readingEncoder[menu] == 3)
+    {
+      String opcoesMenu[8] = {F("<Set Date & time"), F("  Back"), F("  Fix Date & Time"), F("  Set min date Oct 2"), F("> Refresh date & time"), F(""), F(""), F("")};
+      printTextArray(opcoesMenu);
+      if (touchRead(pinC) == 0)
+      {
+        noTime = false;
+        setGMT();
+        saveLastTime();
+        toMenu(menu, 0);
+      }
+    }
+  }
+}
+
+void menu4()
+{
+  if (menu == 4)
+  {
+    createCalendar();
+    if (touchRead(pinC) == 0)
+    {
+      toMenu(menu, 0);
+    }
+  }
+}
+
+void menu5()
+{
+  if (menu == 5)
+  {
+    getWeather();
+    if (touchRead(pinC) == 0)
+    {
+      toMenu(menu, 0);
+    }
+  }
+}
+
+void menu6()
+{
+  if (menu == 6)
+  {
+    if (readingEncoder[menu] == 0)
+    {
+      String opcoesMenu[8] = {F("<Alarm"), F("> Back"), F("  Set alarm"), enableAlarm ? F("  Disable alarm") : F("  Enable alame"), F(""), F(""), F(""), F("")};
+      printTextArray(opcoesMenu);
+      if (touchRead(pinC) == 0)
+      {
+        toMenu(menu, 0);
+      }
+    }
+    if (readingEncoder[menu] == 1)
+    {
+      if (configAlarm == 0)
+      {
+        String opcoesMenu[8] = {F("<Alarm"), F("  Back"), F("> Set alarm"), enableAlarm ? F("  Disable alarm") : F("  Enable alame"), F(""), F(""), F(""), F("")};
+        printTextArray(opcoesMenu);
+      }
+      else
+      {
+          display.clearDisplay();
+          display.drawRoundRect(0, 15, 128, 49, 5, SSD1306_WHITE);
+          display.setTextColor(SSD1306_WHITE);
+          display.setTextSize(1);
+          display.setCursor(42, 1);
+          display.println("Set Alarm");
+          display.setTextSize(3);
+          display.setCursor(20, 25);
+          display.println( (alarmHour<10?"0":"")+String(alarmHour) + ":" + (alarmMin<10?"0":"")+String(alarmMin) );
+          display.drawRect(configAlarm == 1 ? 72 : 18 , 23, 37, 25, SSD1306_WHITE);
+          display.display();
+      }
+
+      if (touchRead(pinC) == 0)
+      {
+        if (configAlarm >= 0 && configAlarm < 3)
+        {
+          configAlarm += 1;
+          delay(500);
+        }
+        if (configAlarm >= 3)
+        {
+          configAlarm = 0;
+          delay(500);
+        }
+      }
+    }
+    if (readingEncoder[menu] == 2)
+    {
+      String opcoesMenu[8] = {F("<Alarm"), F("  Back"), F("  Set alarm"), enableAlarm ? F("> Disable alarm") : F("> Enable alame"), F(""), F(""), F(""), F("")};
+      printTextArray(opcoesMenu);
+      if (touchRead(pinC) == 0)
+      {
+        enableAlarm = !enableAlarm;
+        toMenu(menu, 0);
+      }
+    }
+  }
+}
+void loop(void)
+{
+  ArduinoOTA.handle();
+  toReadEncoder();
+  menu0();
+  menu1();
+  menu2();
+  menu3();
+  menu4();
+  menu6();
 }
