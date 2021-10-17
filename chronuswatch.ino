@@ -20,7 +20,7 @@
 #include <esp_wifi.h>
 #include <esp_bt.h>
 
-#include <fonts/RobotoMonoThin.h>
+// #include <fonts/RobotoMonoThin.h>
 
 //#include <BLEDevice.h>
 //#include <BLEUtils.h>
@@ -81,40 +81,6 @@ void callback()
 {
   //placeholder callback function
 }
-
-//unsigned long lastElements = 0;
-//void showWatch() {
-//  unsigned long now = millis();
-//  lastElements = lastElements == 0 ? now : lastElements;
-
-//  if (now >= lastElements + secTimeout*10000) {
-//    display.clearDisplay();
-//    display.display();
-//    esp_deep_sleep_start();
-//    WiFi.disconnect(true);
-//    WiFi.mode(WIFI_OFF);
-//    btStop();
-//
-//    adc_power_off();
-//    esp_wifi_stop();
-//    esp_bt_controller_disable();
-//  } else {
-//    printLocalTime();
-//  }
-//}
-
-/*void showElements() {
-  unsigned long now = millis();
-  lastElements = lastElements == 0 ? now : lastElements;
-  
-  if (now >= lastElements + secTimeout*1000) {
-    display.clearDisplay();
-    display.display();
-    esp_deep_sleep_start();
-  } else {
-    printElements();
-  }
-}*/
 
 void generalConfig()
 {
@@ -233,16 +199,14 @@ void initSPIFFS()
       {
         DeserializationError error = deserializeJson(doc, configFile);
         if (error)
-          printText(F("Failed to read file, using default configuration"), 0, 0, 1, 3000, 0);
+          printText(F("Failed to read file, using default configuration"), 0, 0, 1, 1000, 0);
         configFile.close();
       }
     }
   }
   else
   {
-    printText(F("An error has occurred while mounting SPIFFS"), 0, 0, 1, 3000, 0);
-    display.clearDisplay();
-    display.display();
+    printText(F("An error while mounting SPIFFS"), 0, 0, 1, 1000, 0);
   }
 
   isDigital = getSPIFFS("isDigital.txt");
@@ -318,8 +282,9 @@ void getFile(String fileName)
 
       timeval tv;
       tv.tv_sec = now;
-      settimeofday(&tv, NULL);
-      settimeofday(&tv, NULL);
+      timezone utc = {-3 * 3600, 3600};
+      const timezone *tz = &utc;
+      settimeofday(&tv, tz);
 
       delay(1000);
     }
@@ -364,29 +329,12 @@ void setGMT()
     {
       getFile("lastSavedTime.txt");
     }
-    
-    timeval tv;
-    tv.tv_sec = time(nullptr)-10800;
-    settimeofday(&tv, NULL);
 
-    //    time_t now = lastSavedTime;
-    //    struct tm* p_tm;
-    //    p_tm = localtime(&now);
-    //
-    //    if(noTime){
-    //      p_tm->tm_sec += 1;
-    //      p_tm->tm_min += 1;
-    //      p_tm->tm_hour += 1;
-    //      p_tm->tm_mday += 1;
-    //      p_tm->tm_mon += 9;
-    //      p_tm->tm_year += 2021-1970;
-    //    }
-    //
-    //    now = mktime(p_tm);
-    //
-    //    timeval tv;
-    //    tv.tv_sec = now;
-    //    settimeofday(&tv, NULL);
+    timeval tv;
+    tv.tv_sec = time(nullptr);
+    timezone utc = {-3 * 3600, 3600};
+    const timezone *tz = &utc;
+    settimeofday(&tv, tz);
   }
   else if (WiFi.status() == WL_CONNECTED)
   {
@@ -400,7 +348,9 @@ void setGMT()
     }
     timeval tv;
     tv.tv_sec = time(nullptr);
-    settimeofday(&tv, NULL);
+    timezone utc = {-3 * 3600, 3600};
+    const timezone *tz = &utc;
+    settimeofday(&tv, tz);
   }
 }
 
@@ -444,42 +394,11 @@ void initDisplay()
   display.display();
   delay(1000);
   display.clearDisplay();
-  display.setFont(&Roboto_Mono_Thin_8);
+  // display.setFont(&Roboto_Mono_Thin_8);
   display.display();
   display.cp437(true);
 }
 
-// void printElements()
-// {
-//   for (byte i = 0; i < doc["elements"].size(); i += 1)
-//   {
-//     const byte type = doc["elements"][i]["type"];
-//     if (type == 0)
-//     {
-//       const byte x = doc["elements"][i]["x"];
-//       const byte y = doc["elements"][i]["y"];
-//       const byte w = doc["elements"][i]["w"];
-//       const byte h = doc["elements"][i]["h"];
-//       const byte r = doc["elements"][i]["r"];
-//       const bool f = doc["elements"][i]["f"];
-//       if (f)
-//         display.fillRoundRect(x, y, w, h, 1, SSD1306_WHITE);
-//       if (!f)
-//         display.drawRoundRect(x, y, w, h, 1, SSD1306_WHITE);
-//     }
-//     else if (type == 1)
-//     {
-//       const String txt = doc["elements"][i]["txt"];
-//       const byte x = doc["elements"][i]["x"];
-//       const byte y = doc["elements"][i]["y"];
-//       const byte s = doc["elements"][i]["s"];
-//       const byte tm = doc["elements"][i]["tm"];
-//       const byte align = doc["elements"][i]["alg"];
-//       printText(txt, x, y, s, tm, align);
-//     }
-//   }
-//   display.display();
-// }
 const unsigned char epd_bitmap_wifi[] PROGMEM = {0x3c, 0xff, 0x81, 0x00, 0x3c, 0x42, 0x00, 0x18};
 const unsigned char epd_bitmap_sino[] PROGMEM = {0x18, 0x3c, 0x3c, 0x7e, 0x7e, 0xff, 0xff, 0x18};
 void printLocalTime()
@@ -489,31 +408,36 @@ void printLocalTime()
   struct tm *p_tm;
   p_tm = localtime(&now);
 
-  if(p_tm->tm_hour == alarmHour && p_tm->tm_min == alarmMin && p_tm->tm_sec % 2 == 0){
+  if (p_tm->tm_hour == alarmHour && p_tm->tm_min == alarmMin && p_tm->tm_sec % 2 == 0)
+  {
     display.invertDisplay(true);
-  } else {
+  }
+  else
+  {
     display.invertDisplay(false);
   }
 
-  if(isDigital) {
+  if (isDigital)
+  {
     display.clearDisplay();
-    
+
     display.setTextSize(1);
     display.setCursor(73, 1);
     String wday[7] = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
     display.fillRect(0, 0, 128, 10, SSD1306_WHITE);
     display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
-    display.println( (p_tm->tm_mday<10?"0":"") + String(p_tm->tm_mday) + (p_tm->tm_sec % 2 == 0 ? "/":" " ) + (p_tm->tm_mon<10?"0":"")+String(p_tm->tm_mon) + " " + wday[p_tm->tm_wday] );
-    
+    display.println((p_tm->tm_mday < 10 ? "0" : "") + String(p_tm->tm_mday) + (p_tm->tm_sec % 2 == 0 ? "/" : " ") + (p_tm->tm_mon < 10 ? "0" : "") + String(p_tm->tm_mon) + " " + wday[p_tm->tm_wday]);
+
     display.setTextSize(3);
     display.drawRoundRect(0, 15, 128, 49, 5, SSD1306_WHITE);
     display.setTextColor(SSD1306_WHITE);
     display.setCursor(20, 25);
-    display.println( (p_tm->tm_hour<10?"0":"")+String(p_tm->tm_hour) + (p_tm->tm_sec % 2 == 0 ? ":":" " ) + (p_tm->tm_min<10?"0":"")+String(p_tm->tm_min) );
-    
-    display.setTextSize(1);
+    display.println((p_tm->tm_hour < 10 ? "0" : "") + String(p_tm->tm_hour) + (p_tm->tm_sec % 2 == 0 ? ":" : " ") + (p_tm->tm_min < 10 ? "0" : "") + String(p_tm->tm_min));
 
-  } else {
+    display.setTextSize(1);
+  }
+  else
+  {
     int r = 36;
     // Now draw the clock face
 
@@ -560,7 +484,6 @@ void printLocalTime()
     display.setTextSize(1);
     display.setCursor((display.width() / 2) + 10, (display.height() / 2) + 2);
     display.print(p_tm->tm_mon + 1);
-    
 
     if (toSetTime > 0)
     {
@@ -573,18 +496,16 @@ void printLocalTime()
   display.setTextSize(1);
   display.setCursor(0, 17);
   if (toSetTime == 1)
-    display.print("Sec");
-  if (toSetTime == 2)
     display.print("Min");
-  if (toSetTime == 3)
+  if (toSetTime == 2)
     display.print("Hour");
-  if (toSetTime == 4)
+  if (toSetTime == 3)
     display.print("Day");
-  if (toSetTime == 5)
+  if (toSetTime == 4)
     display.print("Month");
-  if (toSetTime == 6)
+  if (toSetTime == 5)
     display.print("Year");
-  if (toSetTime == 7)
+  if (toSetTime == 6)
     display.print("Digi");
 
   if (WiFi.status() == WL_CONNECTED)
@@ -652,135 +573,171 @@ void readEncoder(byte highestEncoder)
 
 void readEncoderSetTime(long changeValue)
 {
-  currentTimeEncoder = millis();
-    
-        struct tm *p_tm;
-        time_t nowZero = time(nullptr);
-        p_tm = localtime(&nowZero);
 
-        byte sec = p_tm->tm_sec;
-        byte min = p_tm->tm_min;
-        byte hou = p_tm->tm_hour;
-        byte day = p_tm->tm_mday;
-        byte mon = p_tm->tm_mon;
-        byte yea = p_tm->tm_year;
+  struct tm *p_tm;
+  time_t nowZero = time(nullptr);
+  p_tm = localtime(&nowZero);
 
-  if (currentTimeEncoder >= (lastTimeEncoder) + 5)
+  byte sec = p_tm->tm_sec;
+  byte min = p_tm->tm_min;
+  byte hou = p_tm->tm_hour;
+  byte day = p_tm->tm_mday;
+  byte mon = p_tm->tm_mon;
+  byte yea = p_tm->tm_year;
+
+  while (true)
   {
-    encA = digitalRead(pinA);
-    encB = digitalRead(pinB);
 
-    if ((!encA) && (lastA))
+    if (touchRead(pinC) == 0)
     {
-      if (encB)
+      if (toSetTime >= 0 && toSetTime < 7)
       {
-        if (changeValue == 1)
-        {
-          sec += 1;
-        }
-        else if (changeValue == 2)
-        {
-          min += 1;
-        }
-        else if (changeValue == 3)
-        {
-          hou += 1;
-        }
-        else if (changeValue == 4)
-        {
-         day += + 1;
-        }
-        else if (changeValue == 5)
-        {
-          mon += 1;
-        }
-        else if (changeValue == 6)
-        {
-          yea += 1;
-        }
-        else if (changeValue == 7)
-        {
-          isDigital = !isDigital;
-        }
-
-        // p_tm->tm_sec = sec;
-        // p_tm->tm_min = min;
-        // p_tm->tm_hour = hou;
-        // p_tm->tm_mday = day;
-        // p_tm->tm_mon = mon;
-        // p_tm->tm_year = yea;
-
-        // nowZero = mktime(p_tm);
-
-        // timeval tv;
-        // tv.tv_sec = nowZero;
-        // settimeofday(&tv, NULL);
-
-        // delay(100);
-
+        toSetTime += 1;
+        delay(500);
       }
-      else
+      if (toSetTime >= 7)
       {
-        // struct tm *p_tm;
-        // time_t nowZero = time(nullptr);
-        // p_tm = localtime(&nowZero);
-
-        // byte sec = p_tm->tm_sec;
-        // byte min = p_tm->tm_min;
-        // byte hou = p_tm->tm_hour;
-        // byte day = p_tm->tm_mday;
-        // byte mon = p_tm->tm_mon;
-        // byte yea = p_tm->tm_year;
-        
-        if (changeValue == 1)
-        {
-          sec -= 1;
-        }
-        else if (changeValue == 2)
-        {
-          min -= 1;
-        }
-        else if (changeValue == 3)
-        {
-          hou -= 1;
-        }
-        else if (changeValue == 4)
-        {
-         day -= + 1;
-        }
-        else if (changeValue == 5)
-        {
-          mon -= 1;
-        }
-        else if (changeValue == 6)
-        {
-          yea -= 1;
-        }
-        else if (changeValue == 7)
-        {
-          isDigital = !isDigital;
-        }
+        toSetTime = 0;
+        delay(500);
+        saveSPIFFS("isDigital.txt", isDigital ? "true" : "false");
+        break;
       }
     }
-        p_tm->tm_sec = sec;
-        p_tm->tm_min = min;
-        p_tm->tm_hour = hou;
-        p_tm->tm_mday = day;
-        p_tm->tm_mon = mon;
-        p_tm->tm_year = yea;
 
-        delay(500);
+    currentTimeEncoder = millis();
 
-        nowZero = mktime(p_tm);
-        Serial.println(nowZero);
+    if (currentTimeEncoder >= (lastTimeEncoder) + 5)
+    {
+      encA = digitalRead(pinA);
+      encB = digitalRead(pinB);
 
-        timeval tv;
-        tv.tv_sec = nowZero;
-        settimeofday(&tv, NULL);
+      if ((!encA) && (lastA))
+      {
+        if (encB)
+        {
+          if (toSetTime == 1)
+          {
+            min += 1;
+          }
+          else if (toSetTime == 2)
+          {
+            hou += 1;
+          }
+          else if (toSetTime == 3)
+          {
+            day += 1;
+          }
+          else if (toSetTime == 4)
+          {
+            mon += 1;
+          }
+          else if (toSetTime == 5)
+          {
+            yea += 1;
+          }
+          else if (toSetTime == 6)
+          {
+            isDigital = !isDigital;
+          }
 
-    lastA = encA;
-    lastTimeEncoder = currentTimeEncoder;
+          // p_tm->tm_sec = sec;
+          // p_tm->tm_min = min;
+          // p_tm->tm_hour = hou;
+          // p_tm->tm_mday = day;
+          // p_tm->tm_mon = mon;
+          // p_tm->tm_year = yea;
+
+          // nowZero = mktime(p_tm);
+
+          // timeval tv;
+          // tv.tv_sec = nowZero;
+          // settimeofday(&tv, NULL);
+
+          // delay(100);
+        }
+        else
+        {
+          // struct tm *p_tm;
+          // time_t nowZero = time(nullptr);
+          // p_tm = localtime(&nowZero);
+
+          // byte sec = p_tm->tm_sec;
+          // byte min = p_tm->tm_min;
+          // byte hou = p_tm->tm_hour;
+          // byte day = p_tm->tm_mday;
+          // byte mon = p_tm->tm_mon;
+          // byte yea = p_tm->tm_year;
+
+          if (toSetTime == 1)
+          {
+            min -= 1;
+          }
+          else if (toSetTime == 2)
+          {
+            hou -= 1;
+          }
+          else if (toSetTime == 3)
+          {
+            day -= 1;
+          }
+          else if (toSetTime == 4)
+          {
+            mon -= 1;
+          }
+          else if (toSetTime == 5)
+          {
+            yea -= 1;
+          }
+          else if (toSetTime == 6)
+          {
+            isDigital = !isDigital;
+          }
+        }
+      }
+
+      lastA = encA;
+      lastTimeEncoder = currentTimeEncoder;
+    }
+    display.clearDisplay();
+    display.drawRoundRect(0, 15, 128, 49, 5, SSD1306_WHITE);
+    display.setTextColor(SSD1306_WHITE);
+
+    display.setTextSize(1);
+    display.setCursor(73, 1);
+    display.println((millis() % 2 == 0 && toSetTime == 3 ? "  " : (day < 10 ? "0" : "") + String(day)) + "/" + (millis() % 2 == 0 && toSetTime == 4 ? "  " : (mon < 10 ? "0" : "") + String(mon)) + " " + (millis() % 2 == 0 && toSetTime == 6 ? "  " : String(yea+1900)));
+
+    display.setTextSize(3);
+    display.setCursor(20, 25);
+    display.println((hou < 10 ? "0" : "") + String(hou) + ":" + (min < 10 ? "0" : "") + String(min));
+
+    if (toSetTime == 1)
+    {
+      display.drawRect(72, 23, 37, 25, SSD1306_WHITE);
+    }
+    else if (toSetTime == 2)
+    {
+      display.drawRect(18, 23, 37, 25, SSD1306_WHITE);
+    }
+
+    display.display();
   }
+  p_tm->tm_sec = sec;
+  p_tm->tm_min = min;
+  p_tm->tm_hour = hou;
+  p_tm->tm_mday = day;
+  p_tm->tm_mon = mon;
+  p_tm->tm_year = yea;
+
+  delay(500);
+
+  nowZero = mktime(p_tm);
+  Serial.println(nowZero);
+
+  timeval tv;
+  tv.tv_sec = nowZero;
+  timezone utc = {-3 * 3600, 3600};
+  const timezone *tz = &utc;
+  settimeofday(&tv, tz);
 }
 
 void readEncoderSetAlarm(long changeValue)
@@ -798,18 +755,22 @@ void readEncoderSetAlarm(long changeValue)
         struct tm *p_tm;
         time_t nowZero = time(nullptr);
         p_tm = localtime(&nowZero);
-        
+
         if (changeValue == 1)
         {
-          if (alarmMin < 60) alarmMin += 1;
-          else alarmMin = 0;
+          if (alarmMin < 60)
+            alarmMin += 1;
+          else
+            alarmMin = 0;
         }
         else if (changeValue == 2)
         {
-          if (alarmHour < 24) alarmHour += 1;
-          else alarmHour = 0;
+          if (alarmHour < 24)
+            alarmHour += 1;
+          else
+            alarmHour = 0;
         }
-        
+
         delay(100);
       }
       else
@@ -817,18 +778,22 @@ void readEncoderSetAlarm(long changeValue)
         struct tm *p_tm;
         time_t nowZero = time(nullptr);
         p_tm = localtime(&nowZero);
-        
+
         if (changeValue == 1)
         {
-          if (alarmMin > 0) alarmMin -= 1;
-          else alarmMin = 59;
+          if (alarmMin > 0)
+            alarmMin -= 1;
+          else
+            alarmMin = 59;
         }
         else if (changeValue == 2)
         {
-          if (alarmHour > 0) alarmHour -= 1;
-          else alarmHour = 23;
+          if (alarmHour > 0)
+            alarmHour -= 1;
+          else
+            alarmHour = 23;
         }
-        
+
         delay(100);
       }
     }
@@ -853,14 +818,15 @@ String httpGETRequest(const char *serverName)
 
   if (httpResponseCode > 0)
   {
-    Serial.print("HTTP Response code: ");
-    Serial.println(httpResponseCode);
+    // Serial.print("HTTP Response code: ");
+    // Serial.println(httpResponseCode);
     payload = http.getString();
   }
   else
   {
-    Serial.print("Error code: ");
-    Serial.println(httpResponseCode);
+    payload = "{error: \"error\"}";
+    // Serial.print("Error code: ");
+    // Serial.println(httpResponseCode);
   }
   // Free resources
   http.end();
@@ -873,8 +839,9 @@ void getWeather()
   String endpoint = "http://api.openweathermap.org/data/2.5/weather?id=" + weatherId + "&units=metric&APPID=f1f3dfaf4301e0686904b2057957ddc9";
 
   DeserializationError error = deserializeJson(weather, httpGETRequest(endpoint.c_str()));
-  if (error)
-    printText(F("Failed to read file, using default configuration"), 0, 0, 1, 3000, 0);
+  if (error || weather["error"])
+    printText(F("Error to get Weather"), 0, 30, 1, 3000, 2);
+
   String opcoesMenu[8] = {F("<Weather"), weather["weather"]["description"], F("<Min"), weather["main"]["temp_min"], F("<Max"), weather["main"]["temp_max"], F("<Humidity"), weather["main"]["humidity"]};
   printTextArray(opcoesMenu);
 }
@@ -1011,20 +978,20 @@ void setup(void)
 //    pCharacteristic->setValue("");
 //    value = "";
 //  }
-//}
 
+//}
 void toReadEncoder()
 {
   if (toSetTime == 0 && configAlarm == 0)
   {
     readEncoder(readingEncoderMax[menu]);
   }
-  else if(toSetTime != 0 && configAlarm == 0)
+  else if (toSetTime != 0 && configAlarm == 0)
   {
     readEncoderSetTime(toSetTime);
     saveLastTime();
   }
-  else if(toSetTime == 0 && configAlarm != 0)
+  else if (toSetTime == 0 && configAlarm != 0)
   {
     readEncoderSetAlarm(configAlarm);
   }
@@ -1082,23 +1049,23 @@ void menu0()
         String opcoesMenu[8] = {F("  Home"), F("  Config WiFi"), F("  Power"), F("> Set Date & time"), F("  Calendar"), F("  Weather"), F("  Alarm"), F("")};
         printTextArray(opcoesMenu);
       }
-      else
-      {
-        printLocalTime();
-      }
+      // else
+      // {
+      //   printLocalTime();
+      // }
 
       if (touchRead(pinC) == 0)
       {
-        if (toSetTime >= 0 && toSetTime < 8)
+        if (toSetTime >= 0 && toSetTime < 7)
         {
           toSetTime += 1;
           delay(500);
         }
-        if (toSetTime >= 8)
+        if (toSetTime >= 7)
         {
           toSetTime = 0;
           delay(500);
-          saveSPIFFS("isDigital.txt", isDigital ? "true" : "false" );
+          saveSPIFFS("isDigital.txt", isDigital ? "true" : "false");
         }
       }
     }
@@ -1328,17 +1295,17 @@ void menu6()
       }
       else
       {
-          display.clearDisplay();
-          display.drawRoundRect(0, 15, 128, 49, 5, SSD1306_WHITE);
-          display.setTextColor(SSD1306_WHITE);
-          display.setTextSize(1);
-          display.setCursor(42, 1);
-          display.println("Set Alarm");
-          display.setTextSize(3);
-          display.setCursor(20, 25);
-          display.println( (alarmHour<10?"0":"")+String(alarmHour) + ":" + (alarmMin<10?"0":"")+String(alarmMin) );
-          display.drawRect(configAlarm == 1 ? 72 : 18 , 23, 37, 25, SSD1306_WHITE);
-          display.display();
+        display.clearDisplay();
+        display.drawRoundRect(0, 15, 128, 49, 5, SSD1306_WHITE);
+        display.setTextColor(SSD1306_WHITE);
+        display.setTextSize(1);
+        display.setCursor(42, 1);
+        display.println("Set Alarm");
+        display.setTextSize(3);
+        display.setCursor(20, 25);
+        display.println((alarmHour < 10 ? "0" : "") + String(alarmHour) + ":" + (alarmMin < 10 ? "0" : "") + String(alarmMin));
+        display.drawRect(configAlarm == 1 ? 72 : 18, 23, 37, 25, SSD1306_WHITE);
+        display.display();
       }
 
       if (touchRead(pinC) == 0)
